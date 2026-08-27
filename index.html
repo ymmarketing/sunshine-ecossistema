@@ -12,6 +12,7 @@
   <link rel="stylesheet" href="assets/app.css">
   <link rel="stylesheet" href="assets/mobile-polish.css">
   <link rel="stylesheet" href="assets/v2.css">
+  <link rel="stylesheet" href="assets/v3.css">
 </head>
 <body>
   <section class="login-screen" id="loginScreen" hidden>
@@ -48,12 +49,12 @@
         <button data-view="performance">Performance</button>
         <button data-view="config">Configurações</button>
       </nav>
-      <div class="sidebar-foot"><span class="dot"></span> Ecossistema Sunshine · v2.0</div>
+      <div class="sidebar-foot"><span class="dot"></span> Ecossistema Sunshine · v3.0</div>
     </aside>
     <main>
       <header class="top">
         <div><div class="eyebrow">Sunshine Oráculos · operação interna</div><h1 id="title">Home</h1><div class="muted" id="subtitle">Visão central da operação Sunshine.</div></div>
-        <div class="top-actions"><div id="envChip" class="status-chip">CONECTADO</div><div class="user-chip"><div class="user-dot">S</div><div><b id="userName">Usuário</b><small id="userRole">—</small></div><button class="icon-btn" id="logoutBtn" title="Sair">↗</button></div></div>
+        <div class="top-actions"><button class="notification-bell" id="asaasBell" type="button" title="Entradas do Asaas"><span aria-hidden="true">🔔</span><b id="asaasBellCount" hidden>0</b></button><div id="envChip" class="status-chip">CONECTADO</div><div class="user-chip"><div class="user-dot">S</div><div><b id="userName">Usuário</b><small id="userRole">—</small></div><button class="icon-btn" id="logoutBtn" title="Sair">↗</button></div></div>
       </header>
       <section id="content"></section>
     </main>
@@ -64,6 +65,7 @@
   <script src="assets/login-alias.js"></script>
   <script src="assets/app.js"></script>
   <script src="assets/v2.js"></script>
+  <script src="assets/v3.js"></script>
   <script src="assets/password-guard.js"></script>
 </body>
 </html>
