@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="robots" content="noindex,nofollow">
+  <meta name="theme-color" content="#fbf8f4">
   <title>Sunshine Oráculos — Ecossistema</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -11,12 +12,24 @@
   <link rel="stylesheet" href="assets/app.css">
 </head>
 <body>
-  <div class="shell">
+  <section class="login-screen" id="loginScreen" hidden>
+    <div class="login-card">
+      <div class="login-brand"><div class="brand-symbol"><span></span></div><div class="brand-copy"><strong>Sunshine</strong><small>ORÁCULOS · ECOSSISTEMA</small></div></div>
+      <div class="eyebrow">Ambiente interno</div>
+      <h1>Acessar o ecossistema</h1>
+      <p>Use sua conta de equipe Sunshine. A interface foi desenhada para uso diário, com informação essencial em primeiro plano e detalhes sob demanda.</p>
+      <form id="loginForm">
+        <label>E-mail<input id="loginEmail" type="email" autocomplete="username" required></label>
+        <label>Senha<input id="loginPassword" type="password" autocomplete="current-password" required></label>
+        <div class="login-actions"><button class="btn" id="loginSubmit" type="submit">Entrar</button><button class="btn ghost" id="demoBtn" type="button">Ver modo visual</button></div>
+      </form>
+      <div id="loginHelp" class="login-help">Os logins reais serão vinculados a Yasmin, Rosely e Lourdes. O modo visual permite navegar sem gravar dados.</div>
+    </div>
+  </section>
+
+  <div class="shell" hidden>
     <aside class="sidebar">
-      <div class="brand">
-        <div class="brand-symbol" aria-hidden="true"><span></span></div>
-        <div class="brand-copy"><strong>Sunshine</strong><small>ORÁCULOS · ECOSSISTEMA</small></div>
-      </div>
+      <div class="brand"><div class="brand-symbol" aria-hidden="true"><span></span></div><div class="brand-copy"><strong>Sunshine</strong><small>ORÁCULOS · ECOSSISTEMA</small></div></div>
       <button class="mobile-menu" id="mobileMenu" type="button">Menu</button>
       <nav class="nav" id="nav">
         <button class="active" data-view="home">Home</button>
@@ -30,22 +43,19 @@
         <button data-view="performance">Performance</button>
         <button data-view="config">Configurações</button>
       </nav>
-      <div class="sidebar-foot"><span class="dot"></span> Homologação funcional · v0.5</div>
+      <div class="sidebar-foot"><span class="dot"></span> Ecossistema Sunshine · v1.0</div>
     </aside>
     <main>
       <header class="top">
-        <div>
-          <div class="eyebrow">Sunshine Oráculos · operação interna</div>
-          <h1 id="title">Home</h1>
-          <div class="muted" id="subtitle">Visão central da operação Sunshine.</div>
-        </div>
-        <div class="status-chip" id="backendStatus">CONECTANDO</div>
+        <div><div class="eyebrow">Sunshine Oráculos · operação interna</div><h1 id="title">Home</h1><div class="muted" id="subtitle">Visão central da operação Sunshine.</div></div>
+        <div class="top-actions"><div id="envChip" class="status-chip">CONECTADO</div><div class="user-chip"><div class="user-dot">S</div><div><b id="userName">Usuário</b><small id="userRole">—</small></div><button class="icon-btn" id="logoutBtn" title="Sair">↗</button></div></div>
       </header>
       <section id="content"></section>
     </main>
   </div>
+  <div id="modalRoot"></div><div id="toasts"></div>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="assets/config.js"></script>
-  <script src="assets/backend.js"></script>
   <script src="assets/app.js"></script>
 </body>
 </html>
