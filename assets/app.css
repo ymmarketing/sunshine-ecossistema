@@ -24,3 +24,65 @@ main{padding:26px 28px 38px;min-width:0}.top{display:flex;justify-content:space-
 @media(max-width:1080px){.kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.quick-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.calendar-shell,.client-summary{grid-template-columns:1fr}}
 @media(max-width:860px){.shell{grid-template-columns:205px 1fr}.two{grid-template-columns:1fr}.top-actions{align-items:flex-end;flex-direction:column}}
 @media(max-width:720px){.shell{grid-template-columns:1fr}.sidebar{position:relative;height:auto}.mobile-menu{display:inline-flex;margin:0 6px 10px;border:1px solid var(--line);background:#fff;color:var(--brown);border-radius:9px;padding:9px 10px;font-weight:700}.nav{display:none}.nav.is-open{display:grid}.sidebar-foot{display:none}main{padding:18px}.top{flex-direction:column}.top-actions{width:100%;flex-direction:row;justify-content:space-between;align-items:center}.kpi-grid,.quick-grid,.module-grid,.profile-grid,.subgrid,.form-grid{grid-template-columns:1fr}.span-2{grid-column:auto}.modal-backdrop{padding:8px}.user-chip{max-width:70%}}
+
+/* v1.1 — Auditoria UX mobile
+   Prioridades: nenhuma informação crítica cortada, toque confortável,
+   menos rolagem vertical e áreas densas somente quando necessário. */
+html,body{max-width:100%;overflow-x:hidden}
+.table-wrap{max-width:100%;overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain;scrollbar-width:thin}
+.table-wrap:has(.empty-row) .table{min-width:0}
+
+@media(max-width:720px){
+  body{font-size:14px}
+  .shell{width:100%;max-width:100%;overflow-x:hidden}
+  .sidebar{padding:14px 12px 10px;min-width:0}
+  .brand{padding:2px 4px 12px}.brand-symbol{width:36px;height:36px}.brand-copy strong{font-size:18px}
+  .mobile-menu{min-height:44px;margin:0 4px 8px;padding:10px 12px}
+  .nav button{min-height:44px;padding:11px 12px;font-size:13px}
+  main{width:100%;max-width:100vw;min-width:0;padding:16px 14px calc(26px + env(safe-area-inset-bottom))}
+  .top{gap:12px;margin-bottom:16px;min-width:0}
+  h1{font-size:25px}.muted{font-size:12px}
+  .top-actions{width:100%;display:grid;grid-template-columns:auto minmax(0,1fr);gap:8px;align-items:center}
+  .status-chip{justify-self:start;padding:7px 9px;font-size:9px}
+  .user-chip{width:100%;min-width:0;max-width:none;justify-self:stretch}.user-chip>div:nth-child(2){min-width:0;flex:1}.user-chip b,.user-chip small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+  .card{padding:13px 12px;min-width:0}.card-label{font-size:9px;line-height:1.25}.value{font-size:20px;margin-top:5px;overflow-wrap:anywhere}.card-foot{font-size:10px;line-height:1.35}
+  .panel{padding:14px;margin-top:11px;min-width:0;overflow:hidden}
+  .panel h2{font-size:16px;line-height:1.25}
+  .two,.calendar-shell,.client-summary{grid-template-columns:minmax(0,1fr);gap:11px}
+  .section-head{align-items:flex-start;flex-wrap:wrap;gap:8px;margin-bottom:10px}
+  .section-head>div{min-width:0;flex:1 1 200px}.section-head .link-btn,.section-head>.btn,.section-head>.button-row{flex:0 0 auto}
+  .section-head p{line-height:1.4}
+  .link-btn{min-height:40px;padding:8px 0}
+  .quick-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+  .quick{min-width:0;padding:11px}.quick b{font-size:12px}.quick span{font-size:10px}.quick .mini{font-size:8px}
+  .toolbar{display:grid;grid-template-columns:minmax(0,1fr);gap:8px;width:100%}
+  .toolbar .field,.toolbar .select,.toolbar .btn,.toolbar .grow{width:100%;min-width:0;max-width:100%;min-height:44px}
+  .button-row{width:100%;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}.button-row .btn{width:100%;min-width:0;min-height:42px}
+  .btn{min-height:42px;padding:10px 12px}.icon-btn{min-width:40px;min-height:40px}
+  .table-wrap{width:100%;max-width:100%;margin:0;position:relative;border-radius:8px}
+  .table{width:max-content;min-width:100%;max-width:none}
+  .table th,.table td{padding:9px 8px;font-size:11px}.table th{font-size:9px}
+  .table-wrap:has(.empty-row) .table{width:100%;min-width:100%}
+  .table-wrap:has(.empty-row) thead{display:none}
+  .table-wrap:has(.empty-row) .empty-row td{display:block;width:100%;padding:20px 10px;text-align:center;white-space:normal}
+  .calendar{padding:9px;overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .week{min-width:350px;gap:3px}.day{min-height:46px;padding:5px;font-size:9px}.day span{font-size:7px}
+  .module-grid,.profile-grid,.subgrid,.form-grid{grid-template-columns:minmax(0,1fr)}
+  .profile-grid>div,.module-item{min-width:0}.profile-grid b,.module-item span{overflow-wrap:anywhere}
+  .span-2{grid-column:auto}
+  .modal-backdrop{padding:6px;align-items:end}
+  .modal{width:100%;max-width:none;max-height:calc(100dvh - 12px);border-radius:16px 16px 0 0}
+  .modal.wide{width:100%;max-width:none}.modal-head{padding:14px}.modal-body{padding:14px 14px calc(18px + env(safe-area-inset-bottom))}
+  .form-actions{display:grid;grid-template-columns:1fr;gap:8px}.form-actions .btn{width:100%}
+  .login-screen{min-height:100dvh;padding:14px}.login-card{padding:20px 18px;border-radius:16px}.login-card h1{font-size:22px}
+  .login-actions .btn{min-height:46px}
+  #toasts{left:12px;right:12px;bottom:calc(12px + env(safe-area-inset-bottom))}.toast{max-width:none;width:100%}
+}
+
+@media(max-width:360px){
+  main{padding-left:11px;padding-right:11px}
+  .kpi-grid,.quick-grid{grid-template-columns:minmax(0,1fr)}
+  .top-actions{grid-template-columns:1fr}.status-chip{display:none}
+  .button-row{grid-template-columns:1fr}
+}
