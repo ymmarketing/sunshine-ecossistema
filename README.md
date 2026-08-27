@@ -8,21 +8,20 @@ O sistema novo define primeiro o modelo ideal da operação Sunshine. Só depois
 
 A planilha `SUNSHINE ORÁCULOS_CONTROLE GERAL _ 2026.xlsx` é **fonte histórica de dados para importação e reconciliação**, não modelo de banco, não fonte de requisitos e não fonte de verdade estrutural.
 
-Se um dado do legado não couber no modelo canônico, ele permanece em staging para revisão. O banco oficial nunca será deformado para reproduzir colunas, fórmulas ou limitações da planilha antiga.
-
 ## Core do ecossistema
 
-`clients` é a identidade central do sistema. A partir do cadastro único do cliente, o ecossistema relaciona agenda, consultas, trabalhos, inscrições, **vendas**, pagamentos, comissões, follow-ups, histórico de relacionamento e demais módulos.
+`clients` é a identidade central do sistema. A partir do cadastro único do cliente, o ecossistema relaciona agenda, consultas, trabalhos, inscrições, vendas, pagamentos, comissões, follow-ups, arquivos por link, campanhas e histórico de relacionamento.
 
-Cliente, venda e pagamento são entidades diferentes. Isso permite parcelamento, descontos, pendências, estornos, múltiplos serviços e conciliação sem transformar o cadastro de cliente em uma tabela financeira.
+Cliente, venda e pagamento continuam sendo entidades distintas no banco, mas a rotina operacional foi simplificada: o **Lançamento Rápido** permite criar cliente + venda + pagamento em uma única ação e, quando existe trabalho selecionado, cria também a inscrição.
 
 ## Stack
 
 - HTML/CSS/JavaScript estático.
 - Supabase Auth + Postgres + RLS.
 - Supabase JS v2 no frontend.
-- GitHub para versionamento e homologação.
-- Integrações previstas: Asaas e Reportei.
+- GitHub para versionamento.
+- Vercel para produção.
+- Integrações: Reportei conectado; Asaas previsto via backend seguro.
 
 ## Backend Sunshine
 
@@ -33,89 +32,101 @@ Projeto Supabase exclusivo criado em 27/08/2026:
 - região: São Paulo (`sa-east-1`)
 - organização: `ymmarketing's Org`
 - RLS: habilitado em todas as tabelas operacionais
-- security advisor: sem alertas após hardening
+- logins ativos: Yasmin, Rosely e Lourdes
 
-O frontend utiliza somente a chave **publishable**. Segredos de Asaas, Reportei e service role não podem ser publicados no GitHub.
-
-## Módulos v1
+## Módulos v2
 
 1. Home operacional
 2. Dashboard executivo
 3. Agenda
 4. Clientes / Cliente 360
 5. Trabalhos e inscrições
-6. Filhos da Casa
-7. Consultas / Histórico
-8. Financeiro
-9. Performance
-10. Configurações
+6. Campanhas
+7. Arquivos
+8. Filhos da Casa
+9. Consultas / Histórico
+10. Financeiro
+11. Performance
+12. Configurações
 
-## Funcionalidades implementadas na v1
+## Funcionalidades v2
 
-- autenticação preparada com Supabase Auth;
-- modo visual para homologação sem gravar dados;
+- autenticação por usuário simples: Yasmin, Rosely ou Lourdes;
+- troca obrigatória da senha inicial;
 - cadastro e edição de clientes;
-- ficha Cliente 360 e linha do tempo;
-- registro de Odu por cliente;
-- agenda com criação e edição de compromissos;
-- consultas com orientação e follow-up;
+- Cliente 360 e linha do tempo;
+- Odu por cliente;
+- agenda e histórico de consultas;
+- calendário espiritual dentro da Agenda, com datas anuais, semanais ou únicas;
 - trabalhos coletivos, premium e particulares;
-- inscrições em trabalhos e exportação CSV;
-- cadastro de Filhos da Casa vinculado ao cliente;
-- registro separado de venda e pagamento;
-- conciliação de pagamento com venda;
-- geração automática de comissão em pagamento confirmado;
-- Dashboard com faturamento, vendas, ticket, comissões e rentabilidade por trabalho;
-- campanhas de marketing e estrutura Reportei;
-- catálogo de serviços;
-- layout responsivo para desktop e celular.
+- inscrições e exportação CSV;
+- Lançamento Rápido: cliente + venda + pagamento + inscrição no trabalho em uma única operação atômica;
+- vendas e pagamentos continuam separados tecnicamente, mas a equipe não precisa lançar os dois em telas diferentes na rotina comum;
+- status exibidos em português, mantendo enums técnicos canônicos no banco;
+- comissões 80/10/10 automáticas em pagamentos confirmados;
+- ambiente Arquivos que salva apenas links do Google Drive/Docs, nunca imagens no banco;
+- Campanhas com análise técnica dos trabalhos dos próximos 3 meses;
+- acompanhamento de conteúdo YM e validação pela Central YM;
+- link de referência para a Central YM sem duplicar o conteúdo no Sunshine;
+- Reportei preparado/conectado como fonte de performance;
+- UX mobile refinada para uso diário.
 
 ## Regras de comissão validadas
 
 - Atendimento da Rosely: Rosely 80%, Yasmin 10%, Lourdes 10%.
 - Atendimento da Yasmin: Yasmin 80%, Rosely 10%, Lourdes 10%.
 
-As seis regras estão cadastradas no banco. O motor de comissão recalcula automaticamente os lançamentos quando um pagamento confirmado é alocado a uma venda com responsável definido.
+## Relação Sunshine x YM
 
-## Serviços iniciais
+A Sunshine é cliente da YM. O Ecossistema Sunshine organiza a operação, trabalhos, vendas, calendário e necessidades comerciais. A produção de conteúdo é responsabilidade da YM e a validação oficial acontece na Central YM.
 
-O catálogo canônico foi iniciado com:
+O módulo Campanhas do Sunshine acompanha:
 
-- Consulta de Baralho — R$ 250 / 60 min;
-- Consulta de Búzios — R$ 300 / 40 min;
-- Pergunta Objetiva — R$ 30;
-- Mensalidade Filho da Casa;
-- Trabalho Coletivo;
-- Trabalho Coletivo Premium;
-- Trabalho Particular.
+- trabalho e data;
+- janela comercial;
+- inscritos e receita;
+- hipótese comercial;
+- análise técnica;
+- prioridade;
+- status do conteúdo YM;
+- status de validação Central YM;
+- link para a referência oficial na Central YM.
 
-Os valores de trabalhos permanecem configuráveis por trabalho.
+O conteúdo em si não é duplicado no Ecossistema Sunshine.
+
+## Produção
+
+Projeto Vercel: `sunshine-ecossistema`
+
+URL de produção atual:
+
+`https://sunshine-ecossistema-ym-marketing-negocios.vercel.app`
+
+Domínio desejado:
+
+`https://sunshine.ymnegocios.com.br`
+
+A associação do domínio customizado depende da configuração de domínio/DNS no painel da Vercel ou no provedor DNS. O conector disponível não expõe a ação de adicionar domínio ao projeto.
 
 ## Fonte histórica 2026
 
-O arquivo `SUNSHINE ORÁCULOS_CONTROLE GERAL _ 2026.xlsx` será utilizado posteriormente para recuperar o que for confiável: volumetria, faturamento, lançamentos, responsáveis, serviços/trabalhos e outros campos aproveitáveis.
-
-A ausência de dados completos de clientes no legado **não limita o cadastro novo** e **não define o modelo do módulo Clientes**.
+O arquivo histórico será utilizado posteriormente para importação e reconciliação. A base histórica não define a arquitetura do sistema novo.
 
 ## UX/UI
 
-A disciplina de UX segue a Central YM, com identidade visual Sunshine. Como o sistema será usado diariamente, grandes massas de vermelho, dourado ou marrom escuro são evitadas. A marca aparece em acentos, enquanto o ambiente operacional permanece claro, leve e confortável.
-
-## Impedimento restante para uso autenticado
-
-Os registros de equipe existem no banco, porém `auth_user_id` e e-mails ainda não foram vinculados a Yasmin, Rosely e Lourdes. Até essa vinculação, a aplicação pode ser homologada pelo **modo visual**, mas operações reais exigem login autenticado e membro de equipe vinculado.
+A disciplina de UX segue a Central YM, com identidade visual Sunshine. Grandes massas de vermelho, dourado ou marrom escuro são evitadas. A marca aparece em acentos e o ambiente operacional permanece claro, leve e confortável para uso diário.
 
 ## Status
 
-**v1.0 — interface funcional + backend canônico ativo.**
+**v2.0 — backend ativo + produção Vercel + aceleração operacional.**
 
-- Menos Bucho pausado temporariamente para liberar a vaga gratuita.
-- Supabase Sunshine criado e saudável.
-- 26 tabelas operacionais com RLS.
-- Security Advisor sem alertas.
-- 3 membros iniciais cadastrados.
-- 6 regras de comissão cadastradas.
-- motor automático de comissão e eventos de linha do tempo implantados.
-- 7 serviços canônicos iniciais cadastrados.
-- frontend v1 conectado ao Supabase por chave publishable.
-- pendência externa: criação/vinculação dos logins reais da equipe e integrações Asaas/Reportei.
+- Supabase exclusivo ativo.
+- RLS ativo.
+- logins de Yasmin, Rosely e Lourdes ativos.
+- motor de comissão ativo.
+- Lançamento Rápido implantado e testado em transação com rollback.
+- Arquivos por links de Drive implantado.
+- Calendário espiritual implantado.
+- Campanhas 3 meses + fluxo YM/Central YM implantado.
+- produção Vercel respondendo HTTP 200.
+- impedimento externo restante: associar `sunshine.ymnegocios.com.br` ao projeto Vercel e ajustar DNS caso necessário.
