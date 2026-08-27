@@ -19,11 +19,12 @@
       <h1>Acessar o ecossistema</h1>
       <p>Use sua conta de equipe Sunshine. A interface foi desenhada para uso diário, com informação essencial em primeiro plano e detalhes sob demanda.</p>
       <form id="loginForm">
-        <label>E-mail<input id="loginEmail" type="email" autocomplete="username" required></label>
+        <label>Usuário<input id="loginUsername" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="Yasmin, Rosely ou Lourdes" required></label>
+        <input id="loginEmail" type="hidden">
         <label>Senha<input id="loginPassword" type="password" autocomplete="current-password" required></label>
         <div class="login-actions"><button class="btn" id="loginSubmit" type="submit">Entrar</button><button class="btn ghost" id="demoBtn" type="button">Ver modo visual</button></div>
       </form>
-      <div id="loginHelp" class="login-help">Os logins reais serão vinculados a Yasmin, Rosely e Lourdes. O modo visual permite navegar sem gravar dados.</div>
+      <div id="loginHelp" class="login-help">Entre com Yasmin, Rosely ou Lourdes. Senha inicial: 123456. Por segurança, troque a senha após o primeiro acesso.</div>
     </div>
   </section>
 
@@ -43,7 +44,7 @@
         <button data-view="performance">Performance</button>
         <button data-view="config">Configurações</button>
       </nav>
-      <div class="sidebar-foot"><span class="dot"></span> Ecossistema Sunshine · v1.0</div>
+      <div class="sidebar-foot"><span class="dot"></span> Ecossistema Sunshine · v1.1</div>
     </aside>
     <main>
       <header class="top">
@@ -56,6 +57,7 @@
   <div id="modalRoot"></div><div id="toasts"></div>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="assets/config.js"></script>
+  <script src="assets/login-alias.js"></script>
   <script src="assets/app.js"></script>
 </body>
 </html>
