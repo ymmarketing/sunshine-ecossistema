@@ -1,0 +1,16 @@
+# Credenciais e configuração local
+assets/config.js
+.env
+.env.*
+!.env.example
+
+# Dados operacionais / pessoais
+*.xlsx
+*.xls
+*.csv
+/imports/
+/private/
+
+# Sistema
+.DS_Store
+Thumbs.db
