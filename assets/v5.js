@@ -1,6 +1,7 @@
 /* Sunshine v3.2 — agenda robusta + histórico de trabalhos com volume/arrecadação */
 (function(){
   const monthNames=['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
+  const WORK_PT={COLETIVO:'Coletivo',COLETIVO_PREMIUM:'Coletivo premium',PARTICULAR:'Particular'};
 
   function option(value,label,selected){return `<option value="${value}" ${selected===value?'selected':''}>${label}</option>`;}
 
@@ -80,7 +81,7 @@
     const open=works.filter(w=>w.status==='OPEN').length,planned=works.filter(w=>w.status==='PLANNED').length,done=works.filter(w=>w.status==='DONE').length;
     const rows=works.map(w=>`<tr class="clickable work-metric-row" data-work-id="${w.id}" data-work-type="${escapeHtml(w.work_type||'')}">
       <td><b>${escapeHtml(w.title)}</b>${w.status==='OPEN'?'<small class="open-note">Em aberto · prioridade atual</small>':''}</td>
-      <td>${escapeHtml(pt?pt(w.work_type):w.work_type||'—')}</td>
+      <td>${escapeHtml(WORK_PT[w.work_type]||w.work_type||'—')}</td>
       <td>${escapeHtml(workDateLabel(w,lastSale[w.id]))}</td>
       <td>${w.unit_price!=null?fmtMoney(w.unit_price):'—'}</td>
       <td><b>${volume[w.id]||0}</b><small>inscrições</small></td>
