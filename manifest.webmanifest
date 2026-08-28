@@ -1,0 +1,19 @@
+{
+  "name": "Sunshine Oráculos — Ecossistema",
+  "short_name": "Sunshine",
+  "description": "Ecossistema operacional interno da Sunshine Oráculos",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#FBF8F4",
+  "theme_color": "#F28A1B",
+  "icons": [
+    {
+      "src": "/assets/sunshine-app-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
