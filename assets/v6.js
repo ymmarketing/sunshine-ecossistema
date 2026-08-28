@@ -1,4 +1,4 @@
-/* Sunshine v3.3 — lançamento completo com data/hora de consulta */
+/* Sunshine v3.5 — lançamento completo com preço fixo, variável ou livre */
 (function(){
   function saleTypeFromService(service,workId){
     if(workId)return 'TRABALHO';
@@ -15,6 +15,7 @@
     if(n.includes('pergunta'))return 'PERGUNTA_OBJETIVA';
     return 'OUTRO';
   }
+  function priceMode(service){return service?.metadata?.price_mode||null;}
   function quickEntryWithAppointment(){
     openModal('Novo lançamento',`<form id="quickEntryFormV6" class="form-grid">
       <div class="span-2 soft-box"><h3>1. Cliente</h3><p>Selecione alguém já cadastrado ou deixe em branco para criar o cliente neste mesmo lançamento.</p></div>
@@ -27,7 +28,7 @@
       <label>Serviço<select id="q6Service">${optionList(state.services,'name')}</select></label>
       <label>Trabalho<select id="q6Work">${optionList(state.works,'title')}</select></label>
       <label>Responsável<select id="q6Responsible">${optionList(state.team.filter(x=>x.is_practitioner),'full_name')}</select></label>
-      <label>Valor<input id="q6Amount" required type="number" min="0" step="0.01"></label>
+      <label>Valor<input id="q6Amount" required type="number" min="0" step="0.01"><small id="q6AmountHelp" class="helper"></small></label>
 
       <div id="q6AppointmentBox" class="span-2 soft-box" hidden>
         <h3>Agendar consulta</h3><p>Se a data já estiver definida, informe aqui. A consulta entra automaticamente na Agenda junto com a venda e o pagamento.</p>
@@ -54,6 +55,7 @@
     const serviceSel=document.getElementById('q6Service');
     const workSel=document.getElementById('q6Work');
     const amount=document.getElementById('q6Amount');
+    const amountHelp=document.getElementById('q6AmountHelp');
     const apptBox=document.getElementById('q6AppointmentBox');
     const method=document.getElementById('q6Method');
 
@@ -64,8 +66,20 @@
     function syncCommercial(){
       const service=byId(state.services,serviceSel.value);
       const work=state.works.find(w=>w.id===workSel.value);
-      if(work?.unit_price!=null) amount.value=work.unit_price;
-      else if(service?.default_price!=null) amount.value=service.default_price;
+      amountHelp.textContent='';
+      if(work?.unit_price!=null){
+        amount.value=work.unit_price;
+        amountHelp.textContent='Valor definido no trabalho selecionado.';
+      }else if(service?.default_price!=null){
+        amount.value=service.default_price;
+        amountHelp.textContent='Valor padrão do serviço.';
+      }else if(service){
+        amount.value='';
+        const mode=priceMode(service);
+        amountHelp.textContent=mode==='FREE'?'Valor livre: informe quanto a pessoa pagou.':mode==='VARIABLE'?'Valor variável: digite o valor combinado na hora.':'Informe o valor recebido.';
+      }else if(!work){
+        amount.value='';
+      }
       const isAppointment=!workSel.value && ['CONSULTA','PERGUNTA'].includes(service?.category);
       apptBox.hidden=!isAppointment;
       if(isAppointment)method.value=defaultMethod(service);
@@ -83,6 +97,7 @@
       const service=byId(state.services,val('q6Service'));
       const workId=val('q6Work')||null;
       if(!service&&!workId){toast('Selecione um serviço ou trabalho.','error');return;}
+      if(val('q6Amount')===''){toast('Informe o valor do lançamento.','error');return;}
       const saleType=saleTypeFromService(service,workId);
       const appointmentAt=val('q6AppointmentAt');
       const {data,error}=await db.rpc('register_quick_entry_with_appointment',{
