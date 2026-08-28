@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Sunshine Oráculos">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#F7B84B"/>
+      <stop offset="1" stop-color="#F28A1B"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="7" stdDeviation="6" flood-color="#7A2E22" flood-opacity=".22"/>
+    </filter>
+  </defs>
+  <rect width="512" height="512" rx="106" fill="url(#bg)"/>
+  <g fill="#B6533F" filter="url(#shadow)">
+    <rect x="245" y="72" width="22" height="92" rx="11"/>
+    <rect x="161" y="95" width="22" height="94" rx="11" transform="rotate(-29 172 142)"/>
+    <rect x="329" y="95" width="22" height="94" rx="11" transform="rotate(29 340 142)"/>
+    <rect x="105" y="151" width="22" height="86" rx="11" transform="rotate(-48 116 194)"/>
+    <rect x="385" y="151" width="22" height="86" rx="11" transform="rotate(48 396 194)"/>
+    <path d="M111 330c42-59 91-88 145-88s103 29 145 88c-42 59-91 88-145 88s-103-29-145-88Z"/>
+    <path d="M111 304c22-83 73-126 145-126s123 43 145 126c-45-38-93-57-145-57s-100 19-145 57Z"/>
+  </g>
+  <circle cx="256" cy="330" r="45" fill="#F59A28"/>
+</svg>
