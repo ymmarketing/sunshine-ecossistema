@@ -1,19 +1,22 @@
-/* Sunshine v3.4 — Agenda com cadastro de cliente no mesmo fluxo */
+/* Sunshine v3.6 — Agenda com botão visível para novo cliente */
 (function(){
   function opt(value,label,selected){return `<option value="${value}" ${selected===value?'selected':''}>${label}</option>`;}
 
   appointmentModal=function(a={}){
     const existingOptions=optionList(state.clients,'full_name',a.client_id);
     openModal(a.id?'Editar compromisso':'Novo compromisso',`<form id="apptForm" class="form-grid">
-      <label class="span-2">Cliente
-        <select id="aClient" required>${existingOptions}<option value="__NEW__">+ Cadastrar novo cliente</option></select>
-        <small class="helper">Você pode selecionar alguém já cadastrado ou criar um novo cliente sem sair da Agenda.</small>
-      </label>
+      <div class="span-2">
+        <label>Cliente</label>
+        <div style="display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:end">
+          <select id="aClient" required>${existingOptions}</select>
+          <button id="aNewClientBtn" class="btn ghost" type="button" style="min-height:44px;white-space:nowrap">+ Novo cliente</button>
+        </div>
+        <small class="helper">Selecione alguém já cadastrado ou clique em “+ Novo cliente” para cadastrar e agendar sem sair desta tela.</small>
+      </div>
 
       <div id="aNewClientBox" class="span-2 soft-box" hidden>
-        <h3>Novo cliente</h3>
-        <p>Esses dados já alimentam o Cliente 360.</p>
-        <div class="form-grid" style="margin-top:10px">
+        <div class="section-head" style="margin-bottom:8px"><div><h3>Novo cliente</h3><p>O cadastro será criado e já alimentará o Cliente 360.</p></div><button id="aCancelNewClient" class="btn ghost" type="button">Usar cliente existente</button></div>
+        <div class="form-grid">
           <label class="span-2">Nome completo<input id="aNewName" placeholder="Nome do cliente"></label>
           <label>Telefone<input id="aNewPhone" placeholder="Telefone / WhatsApp"></label>
           <label>Nascimento<input id="aNewBirth" type="date"></label>
@@ -35,35 +38,54 @@
     bindCancel();
     const clientSelect=document.getElementById('aClient');
     const box=document.getElementById('aNewClientBox');
-    const syncClientMode=()=>{
-      const isNew=clientSelect.value==='__NEW__';
-      box.hidden=!isNew;
-      document.getElementById('aNewName').required=isNew;
-    };
-    clientSelect.addEventListener('change',syncClientMode); syncClientMode();
+    const newBtn=document.getElementById('aNewClientBtn');
+    const cancelNewBtn=document.getElementById('aCancelNewClient');
+    let newClientMode=false;
+
+    function syncClientMode(){
+      box.hidden=!newClientMode;
+      clientSelect.disabled=newClientMode;
+      clientSelect.required=!newClientMode;
+      document.getElementById('aNewName').required=newClientMode;
+      newBtn.textContent=newClientMode?'Cadastrando novo cliente':'+ Novo cliente';
+      newBtn.disabled=newClientMode;
+    }
+    newBtn.addEventListener('click',()=>{
+      newClientMode=true;
+      clientSelect.value='';
+      syncClientMode();
+      setTimeout(()=>document.getElementById('aNewName')?.focus(),0);
+    });
+    cancelNewBtn.addEventListener('click',()=>{
+      newClientMode=false;
+      ['aNewName','aNewPhone','aNewBirth','aNewEmail'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+      syncClientMode();
+    });
+    clientSelect.addEventListener('change',()=>{ if(clientSelect.value && newClientMode){newClientMode=false;syncClientMode();} });
+    syncClientMode();
 
     const serviceSelect=document.getElementById('aService');
     serviceSelect.addEventListener('change',()=>{
       const s=byId(state.services,serviceSelect.value);
       if(!s)return;
-      if(s.name==='Consulta de Baralho')document.getElementById('aMethod').value='BARALHO';
-      if(s.name==='Consulta de Búzios')document.getElementById('aMethod').value='BUZIOS';
-      if(s.name==='Pergunta Objetiva')document.getElementById('aMethod').value='PERGUNTA_OBJETIVA';
+      const n=String(s.name||'').toLowerCase();
+      if(n.includes('baralho'))document.getElementById('aMethod').value='BARALHO';
+      if(n.includes('búz')||n.includes('buz'))document.getElementById('aMethod').value='BUZIOS';
+      if(n.includes('pergunta'))document.getElementById('aMethod').value='PERGUNTA_OBJETIVA';
     });
 
     document.getElementById('apptForm').addEventListener('submit',async e=>{
       e.preventDefault(); if(!requireReal())return;
-      const newClient=clientSelect.value==='__NEW__';
-      if(!newClient && !clientSelect.value){toast('Selecione um cliente ou escolha “Cadastrar novo cliente”.','error');return;}
-      if(newClient && !val('aNewName').trim()){toast('Informe o nome do novo cliente.','error');return;}
+      if(!newClientMode && !clientSelect.value){toast('Selecione um cliente ou clique em “+ Novo cliente”.','error');return;}
+      if(newClientMode && !val('aNewName').trim()){toast('Informe o nome do novo cliente.','error');return;}
 
       const {data,error}=await db.rpc('save_appointment_with_client',{
         p_appointment_id:a.id||null,
-        p_client_id:newClient?null:clientSelect.value,
-        p_client_name:newClient?val('aNewName').trim():null,
-        p_client_phone:newClient?val('aNewPhone').trim()||null:null,
-        p_client_email:newClient?val('aNewEmail').trim()||null:null,
-        p_client_birth_date:newClient?val('aNewBirth')||null:null,
+        p_client_id:newClientMode?null:clientSelect.value,
+        p_client_name:newClientMode?val('aNewName').trim():null,
+        p_client_phone:newClientMode?val('aNewPhone').trim()||null:null,
+        p_client_email:newClientMode?val('aNewEmail').trim()||null:null,
+        p_client_birth_date:newClientMode?val('aNewBirth')||null:null,
         p_service_id:val('aService')||null,
         p_responsible_member_id:val('aResponsible')||null,
         p_event_type:val('aType'),
@@ -74,9 +96,9 @@
         p_follow_up_notes:val('aFollow')||null
       });
       if(error){toast(error.message,'error');return;}
-      toast(newClient?'Cliente cadastrado e consulta agendada.':(a.id?'Compromisso atualizado.':'Consulta agendada.'));
+      toast(newClientMode?'Cliente cadastrado e consulta agendada.':(a.id?'Compromisso atualizado.':'Consulta agendada.'));
       closeModal();
-      if(newClient)await loadReferenceData();
+      if(newClientMode)await loadReferenceData();
       await render();
     });
   };
