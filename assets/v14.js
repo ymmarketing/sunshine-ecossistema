@@ -1,6 +1,8 @@
-/* Sunshine v3.14 — inclui histórico de comissões pagas no KPI Pago no mês */
+/* Sunshine v3.15 — histórico + baixas do mês detalhados por beneficiário */
 (function(){
   const previousBindViewActions=bindViewActions;
+
+  function commissionMemberName(id){ return byId(state.team,id)?.full_name || '—'; }
 
   async function refreshCommissionPaidMonth(){
     if(state.demo || state.view!=='financeiro' || !state.session) return;
@@ -13,14 +15,14 @@
 
     const [operational,historical]=await Promise.all([
       safeQuery(db.from('commission_entries')
-        .select('amount')
+        .select('amount,beneficiary_member_id')
         .eq('calculation_source','RULE')
         .eq('status','PAID')
         .gte('paid_at',start.toISOString())
         .lt('paid_at',end.toISOString())
         .limit(2000)),
       safeQuery(db.from('commission_entries')
-        .select('amount')
+        .select('amount,beneficiary_member_id')
         .eq('calculation_source','IMPORT')
         .eq('status','HISTORICAL')
         .gte('paid_at',start.toISOString())
@@ -28,8 +30,10 @@
         .limit(5000))
     ]);
 
-    const operationalTotal=(operational.data||[]).reduce((sum,row)=>sum+Number(row.amount||0),0);
-    const historicalTotal=(historical.data||[]).reduce((sum,row)=>sum+Number(row.amount||0),0);
+    const operationalRows=operational.data||[];
+    const historicalRows=historical.data||[];
+    const operationalTotal=operationalRows.reduce((sum,row)=>sum+Number(row.amount||0),0);
+    const historicalTotal=historicalRows.reduce((sum,row)=>sum+Number(row.amount||0),0);
     const total=operationalTotal+historicalTotal;
 
     const paidCard=Array.from(panel.querySelectorAll('.card')).find(card=>/PAGO NO MÊS/i.test(card.textContent||''));
@@ -40,6 +44,28 @@
       if(foot) foot.textContent=historicalTotal>0
         ? 'Histórico pago + baixas operacionais neste mês'
         : 'Baixas operacionais registradas neste mês';
+    }
+
+    const byPerson={};
+    [...historicalRows,...operationalRows].forEach(row=>{
+      const id=row.beneficiary_member_id;
+      if(!id) return;
+      byPerson[id]=(byPerson[id]||0)+Number(row.amount||0);
+    });
+
+    panel.querySelector('#paidMonthByPerson')?.remove();
+    if(Object.keys(byPerson).length){
+      const block=document.createElement('div');
+      block.id='paidMonthByPerson';
+      block.className='source-note';
+      block.style.margin='14px 0';
+      const items=Object.entries(byPerson)
+        .sort((a,b)=>b[1]-a[1])
+        .map(([id,value])=>`<div style="display:flex;justify-content:space-between;gap:12px;padding:5px 0"><b>${escapeHtml(commissionMemberName(id))}</b><span>${fmtMoney(value)}</span></div>`)
+        .join('');
+      block.innerHTML=`<b>Pago no mês por pessoa</b><div style="margin-top:7px">${items}</div>`;
+      const grid=panel.querySelector('.kpi-grid');
+      if(grid) grid.insertAdjacentElement('afterend',block);
     }
 
     const intro=panel.querySelector('.section-head p');
