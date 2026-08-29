@@ -1,0 +1,115 @@
+/* Sunshine v3.23 — padrão visual unificado do ecossistema */
+:root{
+  --sun-bg:#fbf8f4;
+  --sun-surface:#ffffff;
+  --sun-surface-soft:#f8f3ed;
+  --sun-surface-warm:#fffaf5;
+  --sun-line:#e7ddd4;
+  --sun-line-strong:#d9c8bc;
+  --sun-red:#b40001;
+  --sun-red-hover:#9f0001;
+  --sun-terracotta:#a34b33;
+  --sun-clay:#b85d43;
+  --sun-brown:#6f4b40;
+  --sun-gold:#b98a24;
+  --sun-green:#3f6a52;
+  --sun-text:#24110b;
+  --sun-muted:#7a665f;
+}
+
+/* Base: sempre clara; cor forte apenas em decisão, ação e estado */
+body,main,#content{background:var(--sun-bg)}
+main{color:var(--sun-text)}
+
+/* Cabeçalho e navegação */
+.top{padding-bottom:16px;border-bottom:1px solid rgba(231,221,212,.75)}
+.eyebrow{color:var(--sun-terracotta)}
+.nav button{transition:background .16s ease,color .16s ease,transform .16s ease}
+.nav button:hover{background:#f8f2ec}
+.nav button.active{background:#fff0ed;color:var(--sun-red)}
+.nav button.active:before{background:var(--sun-red)}
+.mobile-menu{background:#fff;border-color:var(--sun-line-strong);color:var(--sun-brown)}
+
+/* Superfícies e seções */
+.card,.panel,.module-item,.client-card,.calendar,.user-chip{
+  background:var(--sun-surface);
+  border-color:var(--sun-line);
+}
+.panel{box-shadow:0 5px 20px rgba(65,37,25,.05)}
+#content>.panel,#content>div>.panel{margin-top:16px}
+.section-head{padding-bottom:11px;border-bottom:1px solid #eee5de}
+.section-head h2{display:flex;align-items:center;gap:9px}
+.section-head h2:before{content:"";width:5px;height:18px;border-radius:99px;background:var(--sun-terracotta);flex:0 0 auto}
+.panel>h2:first-child{display:flex;align-items:center;gap:9px}
+.panel>h2:first-child:before{content:"";width:5px;height:18px;border-radius:99px;background:var(--sun-gold);flex:0 0 auto}
+
+/* KPIs: base branca com pequenos acentos, nunca blocos pesados */
+.kpi-grid .card{position:relative;overflow:hidden}
+.kpi-grid .card:before{content:"";position:absolute;left:0;right:0;top:0;height:3px;background:var(--sun-terracotta)}
+.kpi-grid .card:nth-child(2):before{background:var(--sun-gold)}
+.kpi-grid .card:nth-child(3):before{background:var(--sun-clay)}
+.kpi-grid .card:nth-child(4):before{background:var(--sun-brown)}
+
+/* Barras de ferramentas e filtros viram agrupadores neutros */
+.toolbar{
+  background:var(--sun-surface-soft);
+  border:1px solid var(--sun-line);
+  border-radius:13px;
+  padding:10px;
+}
+.field,.select,input,select,textarea{border-color:var(--sun-line-strong);background:#fff}
+.field:focus,.select:focus,input:focus,select:focus,textarea:focus{
+  border-color:#c98d7f;
+  box-shadow:0 0 0 3px #fff0ed;
+}
+
+/* Ações: hierarquia consistente em todas as telas */
+.btn{background:var(--sun-red);color:#fff;box-shadow:0 3px 10px rgba(180,0,1,.10)}
+.btn:hover{background:var(--sun-red-hover);filter:none}
+.btn.secondary{background:var(--sun-terracotta);color:#fff}
+.btn.secondary:hover{background:#90422f}
+.btn.ghost{background:#fff;color:var(--sun-brown);border:1px solid var(--sun-line-strong);box-shadow:none}
+.btn.ghost:hover{background:#faf5f0}
+.link-btn{color:var(--sun-red)}
+
+/* Tabelas: separar cabeçalho, linhas e ação sem pintar o conteúdo */
+.table-wrap{border-radius:10px}
+.table thead{background:#fbf6f1}
+.table th{color:#80695f}
+.table td,.table th{border-bottom-color:#ece2da}
+.table tbody tr.clickable:hover td,.table tbody tr:hover td{background:#fffaf6}
+.table tbody tr.clickable{cursor:pointer}
+
+/* Componentes internos */
+.module-item,.profile-grid>div,.client-profile-item{
+  background:#fff;
+  border-color:var(--sun-line);
+}
+.module-item{box-shadow:inset 3px 0 0 #ead4c8}
+.module-item:hover{box-shadow:inset 3px 0 0 var(--sun-terracotta)}
+.note{background:#fff9ed;border-left-color:var(--sun-gold)}
+details{border-color:var(--sun-line)}
+details>summary{background:#fbf6f1;color:var(--sun-brown)}
+
+/* Estados semânticos */
+.status-chip{background:#edf5f0;border-color:#d6e7db;color:#2f6047}
+.pill.ok{background:#eaf4ee;color:#315e45}
+.pill.gold{background:#fff4cf;color:#75560b}
+.pill.red{background:#fff0ee;color:#a40000}
+.pill.neutral{background:#f2eeeb;color:#6f5c54}
+
+/* Modais seguem o mesmo sistema visual */
+.modal{border-color:var(--sun-line);box-shadow:0 22px 70px rgba(50,20,15,.16)}
+.modal-head{border-bottom-color:var(--sun-line);box-shadow:inset 0 3px 0 var(--sun-terracotta)}
+.modal-body{background:#fff}
+.form-divider{border-top-color:var(--sun-line)}
+
+/* Mobile: manter a mesma hierarquia, não uma Home diferente */
+@media(max-width:720px){
+  .top{padding-bottom:14px}
+  .section-head{gap:8px}
+  .section-head h2:before,.panel>h2:first-child:before{height:16px}
+  .toolbar{padding:9px;background:#f9f4ee}
+  .panel{box-shadow:0 4px 15px rgba(65,37,25,.045)}
+  .btn,.btn.secondary,.btn.ghost{min-height:44px}
+}
