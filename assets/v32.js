@@ -1,63 +1,28 @@
-/* Sunshine v3.32 — big number Recebido no mês no bloco de Comissões */
+/* Sunshine v3.33 — filtros de período + baixa de comissão por período + UX sem falha silenciosa */
 (function(){
+  const PERIOD_KEY='sunshine.period.v33';
   let observer32=null;
-
-  function commissionPanel32(){
-    const panels=[...document.querySelectorAll('#content article.panel')];
-    return panels.find(p=>/^comiss[oõ]es$/i.test((p.querySelector('h2')?.textContent||'').trim()))||null;
-  }
-
-  async function receivedMonth32(){
-    if(state.demo||!db)return 0;
-    const [ms,me]=monthRange();
-    const {data,error}=await db.from('payments')
-      .select('gross_amount,paid_at')
-      .eq('status','PAID')
-      .gte('paid_at',ms)
-      .lt('paid_at',me)
-      .limit(10000);
-    if(error)throw error;
-    return (data||[]).reduce((sum,row)=>sum+Number(row.gross_amount||0),0);
-  }
-
-  function findCommissionKpis32(panel){
-    const grids=[...panel.querySelectorAll('.kpi-grid')];
-    return grids.find(g=>{
-      const txt=(g.textContent||'').toLowerCase();
-      return txt.includes('a pagar')&&txt.includes('pago no mês')&&txt.includes('pessoas com saldo');
-    })||null;
-  }
-
-  async function injectReceived32(){
-    if(state.view!=='financeiro')return;
-    const panel=commissionPanel32();
-    if(!panel)return;
-    const grid=findCommissionKpis32(panel);
-    if(!grid||grid.querySelector('#commissionReceivedMonth32'))return;
-
-    const card=document.createElement('article');
-    card.className='card';
-    card.id='commissionReceivedMonth32';
-    card.innerHTML='<div class="card-label">RECEBIDO NO MÊS</div><div class="value">Carregando…</div><div class="card-foot">Todos os pagamentos confirmados</div>';
-    grid.insertAdjacentElement('afterbegin',card);
-
-    try{
-      const total=await receivedMonth32();
-      const value=card.querySelector('.value');
-      if(value)value.textContent=fmtMoney(total);
-    }catch(e){
-      console.error(e);
-      const value=card.querySelector('.value');
-      if(value)value.textContent='—';
-    }
-  }
-
-  function start32(){
-    injectReceived32();
-    if(observer32)return;
-    observer32=new MutationObserver(()=>injectReceived32());
-    observer32.observe(document.getElementById('content')||document.body,{childList:true,subtree:true});
-  }
-
+  function localISODate(d=new Date()){return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;}
+  function defaultPeriod(){const now=new Date();return {start:`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-01`,end:localISODate(now)};}
+  function getPeriod(){try{return {...defaultPeriod(),...(JSON.parse(localStorage.getItem(PERIOD_KEY)||'{}'))};}catch(_e){return defaultPeriod();}}
+  function setPeriod(p){localStorage.setItem(PERIOD_KEY,JSON.stringify(p));}
+  function bounds(p){const start=new Date(`${p.start}T00:00:00-03:00`);const end=new Date(`${p.end}T00:00:00-03:00`);end.setDate(end.getDate()+1);return [start.toISOString(),end.toISOString()];}
+  function validPeriod(p){return Boolean(p.start&&p.end&&p.start<=p.end);}
+  function humanError(e,fallback='Não foi possível concluir a ação.'){const raw=String(e?.message||e||fallback);if(/respons/i.test(raw))return 'Falta definir o responsável. Selecione quem realizou o atendimento para calcular as comissões e concluir.';if(/service|servi[cç]o/i.test(raw))return 'Falta definir o serviço. Selecione qual serviço foi pago para concluir a associação.';if(/client|cliente/i.test(raw)&&/not|n[aã]o|null|missing|falt/i.test(raw))return 'Falta identificar o cliente. Selecione ou complete o cadastro do cliente para concluir.';if(/appointment|compromisso/i.test(raw)&&/not|n[aã]o|null|missing|falt/i.test(raw))return 'Falta um atendimento válido para concluir esta associação. Confira cliente, data, serviço e responsável.';return raw;}
+  function ensureStyles32(){if(document.getElementById('v32styles'))return;const s=document.createElement('style');s.id='v32styles';s.textContent=`.period-bar32{display:flex;gap:10px;align-items:end;flex-wrap:wrap;padding:12px 14px;margin:0 0 14px;border:1px solid #eadbd1;border-radius:14px;background:#fffaf6}.period-bar32 label{display:grid;gap:5px;font-size:11px;font-weight:800;color:#6c5147}.period-bar32 input{min-width:150px}.period-summary32{font-size:12px;color:#806b62;flex:1 1 220px;align-self:center}.client-fold32{margin-top:14px}.client-fold32>button{width:100%;display:flex;justify-content:space-between;align-items:center;border:0;background:#fff8f5;border-radius:12px;padding:12px 14px;font-weight:800;color:#5b2e20;cursor:pointer}.client-fold32>button span:last-child{font-size:18px}.client-fold32-body[hidden]{display:none!important}.field-error32{outline:2px solid #b42318!important;outline-offset:1px}@media(max-width:720px){.period-bar32{display:grid;grid-template-columns:1fr 1fr}.period-bar32 label input{width:100%;min-width:0}.period-summary32,.period-bar32 .btn{grid-column:1/-1}.client-summary{display:block!important}.client-summary>.panel{width:100%!important}}`;document.head.appendChild(s);}
+  function periodBar32(context){const p=getPeriod();return `<div class="period-bar32" data-period-context32="${context}"><label>De<input class="field" type="date" data-period-start32 value="${p.start}"></label><label>Até<input class="field" type="date" data-period-end32 value="${p.end}"></label><button type="button" class="btn secondary" data-apply-period32>Aplicar período</button><div class="period-summary32">Filtro aplicado aos registros desta tela e às baixas de comissão.</div></div>`;}
+  async function reloadFinanceRows32(p){if(state.demo||!db)return;if(!validPeriod(p)){toast('Informe uma data inicial e uma data final válidas.','error');return;}const [start,end]=bounds(p);const [payments,sales]=await Promise.all([db.from('payments').select('*,clients(full_name)').gte('paid_at',start).lt('paid_at',end).order('paid_at',{ascending:false}).limit(5000),db.from('sales').select('*,clients(full_name),services(name)').gte('sold_at',start).lt('sold_at',end).order('sold_at',{ascending:false}).limit(5000)]);if(payments.error){toast(humanError(payments.error),'error');return;}if(sales.error){toast(humanError(sales.error),'error');return;}const panels=[...document.querySelectorAll('#content article.panel')];const pp=panels.find(x=>(x.querySelector('h2')?.textContent||'').trim()==='Pagamentos');const sp=panels.find(x=>(x.querySelector('h2')?.textContent||'').trim()==='Vendas');const pt=pp?.querySelector('tbody'),st=sp?.querySelector('tbody');if(pt)pt.innerHTML=(payments.data||[]).length?(payments.data||[]).map(x=>`<tr><td>${fmtDateTime(x.paid_at||x.created_at)}</td><td>${escapeHtml(x.clients?.full_name||'—')}</td><td>${escapeHtml(x.source||'—')}</td><td>${fmtMoney(x.gross_amount)}</td><td>${statusPill(x.status)}</td></tr>`).join(''):'<tr class="empty-row"><td colspan="5">Nenhum pagamento neste período.</td></tr>';if(st)st.innerHTML=(sales.data||[]).length?(sales.data||[]).map(x=>`<tr><td>${fmtDateTime(x.sold_at)}</td><td>${escapeHtml(x.clients?.full_name||'—')}</td><td>${escapeHtml(x.services?.name||x.sale_type||'—')}</td><td>${fmtMoney(x.total_amount)}</td><td>${statusPill(x.status)}</td></tr>`).join(''):'<tr class="empty-row"><td colspan="5">Nenhuma venda neste período.</td></tr>';toast(`Período financeiro carregado: ${p.start.split('-').reverse().join('/')} a ${p.end.split('-').reverse().join('/')}.`);}
+  async function reloadConsultations32(p){if(state.demo||!db)return;if(!validPeriod(p)){toast('Informe uma data inicial e uma data final válidas.','error');return;}const [start,end]=bounds(p);const q=await db.from('appointments').select('*,clients(full_name),services(name),team_members:responsible_member_id(full_name)').in('event_type',['CONSULTA','PERGUNTA','RETORNO']).gte('starts_at',start).lt('starts_at',end).order('starts_at',{ascending:false}).limit(5000);if(q.error){toast(humanError(q.error),'error');return;}const tbody=document.querySelector('#content table tbody');if(!tbody)return;tbody.innerHTML=(q.data||[]).length?(q.data||[]).map(a=>`<tr class="clickable" data-appt-id="${a.id}"><td>${fmtDateTime(a.starts_at)}</td><td>${escapeHtml(a.clients?.full_name||'—')}</td><td>${escapeHtml(a.services?.name||a.consultation_method||a.event_type)}</td><td>${escapeHtml(a.team_members?.full_name||'—')}</td><td>${statusPill(a.status)}</td><td class="wrap-cell">${escapeHtml(a.guidance_summary||'—')}</td></tr>`).join(''):'<tr class="empty-row"><td colspan="6">Nenhuma consulta neste período.</td></tr>';tbody.querySelectorAll('[data-appt-id]').forEach(r=>r.addEventListener('click',()=>editAppointment(r.dataset.apptId)));toast(`Consultas carregadas: ${p.start.split('-').reverse().join('/')} a ${p.end.split('-').reverse().join('/')}.`);}
+  async function commissionSummary32(p){if(state.demo||!db)return {count:0,total:0};const [start,end]=bounds(p);const ce=await db.from('commission_entries').select('id,amount,payment_allocation_id').eq('status','DUE').limit(10000);if(ce.error)throw ce.error;const ids=[...new Set((ce.data||[]).map(x=>x.payment_allocation_id).filter(Boolean))];if(!ids.length)return {count:0,total:0};const pa=await db.from('payment_allocations').select('id,payment_id').in('id',ids).limit(10000);if(pa.error)throw pa.error;const pids=[...new Set((pa.data||[]).map(x=>x.payment_id).filter(Boolean))];if(!pids.length)return {count:0,total:0};const pq=await db.from('payments').select('id,paid_at,created_at').in('id',pids).gte('paid_at',start).lt('paid_at',end).limit(10000);if(pq.error)throw pq.error;const okPayments=new Set((pq.data||[]).map(x=>x.id));const allocOk=new Set((pa.data||[]).filter(x=>okPayments.has(x.payment_id)).map(x=>x.id));const rows=(ce.data||[]).filter(x=>allocOk.has(x.payment_allocation_id));return {count:rows.length,total:rows.reduce((s,x)=>s+Number(x.amount||0),0)};}
+  async function payPeriod32(btn){const p=getPeriod();if(!validPeriod(p)){toast('Defina o período antes de dar baixa nas comissões.','error');return;}let s;try{s=await commissionSummary32(p);}catch(e){toast(humanError(e),'error');return;}if(!s.count){toast('Não há comissões pendentes dentro do período selecionado.');return;}if(!confirm(`Marcar como pagas ${s.count} comissões do período ${p.start.split('-').reverse().join('/')} a ${p.end.split('-').reverse().join('/')} no total de ${fmtMoney(s.total)}?`))return;btn.disabled=true;btn.textContent='Dando baixa no período…';const [start,end]=bounds(p);const {data,error}=await db.rpc('admin_pay_due_commissions_between',{p_start:start,p_end:end});btn.disabled=false;btn.textContent='Marcar período como pago';if(error){toast(humanError(error),'error');return;}toast(`${Number(data?.count||0)} comissões do período marcadas como pagas · ${fmtMoney(data?.total||0)}.`);await navigate('financeiro');}
+  function decorateFinance32(){if(state.view!=='financeiro')return;const content=document.getElementById('content');if(!content)return;if(!content.querySelector('[data-period-context32="financeiro"]'))content.insertAdjacentHTML('afterbegin',periodBar32('financeiro'));const old=document.querySelector('[data-pay-all-commissions30]');if(old&&!old.dataset.period32){old.removeAttribute('data-pay-all-commissions30');old.dataset.payPeriod32='1';old.dataset.period32='1';old.textContent='Marcar período como pago';}}
+  function decorateConsultations32(){if(state.view!=='consultas')return;const content=document.getElementById('content');if(!content)return;if(!content.querySelector('[data-period-context32="consultas"]'))content.insertAdjacentHTML('afterbegin',periodBar32('consultas'));}
+  function decorateClientFold32(){if(state.view!=='clientes')return;const summary=document.querySelector('#content .client-summary');if(!summary||summary.dataset.fold32==='1')return;summary.dataset.fold32='1';summary.classList.add('client-fold32-body');summary.hidden=true;const wrap=document.createElement('div');wrap.className='client-fold32';wrap.innerHTML='<button type="button" data-client-fold32 aria-expanded="false"><span>Dados do cliente selecionado</span><span aria-hidden="true">⌄</span></button>';summary.parentNode.insertBefore(wrap,summary);wrap.appendChild(summary);}
+  function invalidMessage32(target){const label=target.closest('label')?.childNodes?.[0]?.textContent?.trim()||target.getAttribute('aria-label')||target.name||target.id||'campo obrigatório';target.classList.add('field-error32');setTimeout(()=>target.classList.remove('field-error32'),1800);toast(`Falta preencher: ${label}. Complete esse dado para concluir.`,'error');}
+  document.addEventListener('invalid',e=>invalidMessage32(e.target),true);
+  window.addEventListener('unhandledrejection',e=>{if(e.reason)toast(humanError(e.reason),'error');});
+  document.addEventListener('click',async e=>{const apply=e.target.closest('[data-apply-period32]');if(apply){const bar=apply.closest('[data-period-context32]');const p={start:bar.querySelector('[data-period-start32]').value,end:bar.querySelector('[data-period-end32]').value};if(!validPeriod(p)){toast('A data inicial não pode ser posterior à data final.','error');return;}setPeriod(p);if(bar.dataset.periodContext32==='financeiro')await reloadFinanceRows32(p);else await reloadConsultations32(p);return;}const pay=e.target.closest('[data-pay-period32]');if(pay){e.preventDefault();e.stopPropagation();await payPeriod32(pay);return;}const fold=e.target.closest('[data-client-fold32]');if(fold){const body=fold.parentElement.querySelector('.client-fold32-body');const open=body.hidden;body.hidden=!open;fold.setAttribute('aria-expanded',String(open));fold.querySelector('span:last-child').textContent=open?'⌃':'⌄';return;}},true);
+  function inject32(){ensureStyles32();decorateFinance32();decorateConsultations32();decorateClientFold32();const foot=document.querySelector('.sidebar-foot');if(foot)foot.innerHTML='<span class="dot"></span> Ecossistema Sunshine · v3.33';}
+  function start32(){inject32();if(observer32)return;observer32=new MutationObserver(inject32);observer32.observe(document.getElementById('content')||document.body,{childList:true,subtree:true});}
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start32);else start32();
 })();
