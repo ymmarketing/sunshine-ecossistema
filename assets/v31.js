@@ -1,4 +1,4 @@
-/* Sunshine v3.31 — copiar fechamento de comissões para WhatsApp */
+/* Sunshine v3.31.1 — copiar fechamento de comissões para WhatsApp */
 (function(){
   let observer31=null;
 
@@ -57,7 +57,7 @@
   function buildMessage31(d){
     if(!d.rows.length)return 'SEM PENDÊNCIAS';
     const start=dateBR31(d.start),end=dateBR31(d.end);
-    return `FECHAMENTO DIA ${start} A ${end}\n\nCOMISSÃO DO PERÍODO: ${start} A ${end}\nYASMIN: ${fmtMoney(d.totals.Yasmin||0)}\nLOURDES: ${fmtMoney(d.totals.Lourdes||0)}\nROSELY: ${fmtMoney(d.totals.Rosely||0)}\n\nOBS\nValores referentes somente às comissões ainda não pagas no Ecossistema Sunshine.`;
+    return `COMISSÃO DO PERÍODO: ${start} A ${end}\n\nYASMIN: ${fmtMoney(d.totals.Yasmin||0)}\nLOURDES: ${fmtMoney(d.totals.Lourdes||0)}\nROSELY: ${fmtMoney(d.totals.Rosely||0)}`;
   }
 
   async function copyText31(text){
