@@ -1,4 +1,4 @@
-/* Sunshine v3.31.1 — copiar fechamento de comissões para WhatsApp */
+/* Sunshine v3.32 — fechamento de comissões + recebido no mês */
 (function(){
   let observer31=null;
 
@@ -18,6 +18,60 @@
     if(!v)return '—';
     const d=new Date(v);
     return new Intl.DateTimeFormat('pt-BR',{day:'2-digit',month:'2-digit',timeZone:'America/Sao_Paulo'}).format(d);
+  }
+
+  function commissionPanel31(){
+    const panels=[...document.querySelectorAll('#content article.panel')];
+    return panels.find(p=>/^comiss[oõ]es$/i.test((p.querySelector('h2')?.textContent||'').trim()))||null;
+  }
+
+  async function receivedMonth31(){
+    if(state.demo||!db)return 0;
+    const [ms,me]=monthRange();
+    const {data,error}=await db.from('payments')
+      .select('gross_amount,paid_at')
+      .eq('status','PAID')
+      .gte('paid_at',ms)
+      .lt('paid_at',me)
+      .limit(10000);
+    if(error)throw error;
+    return (data||[]).reduce((sum,row)=>sum+Number(row.gross_amount||0),0);
+  }
+
+  function findCommissionKpis31(panel){
+    const grids=[...panel.querySelectorAll('.kpi-grid')];
+    return grids.find(g=>{
+      const txt=(g.textContent||'').toLowerCase();
+      return txt.includes('a pagar')&&txt.includes('pago no mês')&&txt.includes('pessoas com saldo');
+    })||null;
+  }
+
+  async function injectReceived31(){
+    if(state.view!=='financeiro')return;
+    const panel=commissionPanel31();
+    if(!panel)return;
+    const grid=findCommissionKpis31(panel);
+    if(!grid||grid.querySelector('#commissionReceivedMonth31'))return;
+
+    const card=document.createElement('article');
+    card.className='card';
+    card.id='commissionReceivedMonth31';
+    card.innerHTML='<div class="card-label">RECEBIDO NO MÊS</div><div class="value">Carregando…</div><div class="card-foot">Todos os pagamentos confirmados</div>';
+    grid.insertAdjacentElement('afterbegin',card);
+
+    try{
+      const total=await receivedMonth31();
+      if(card.isConnected){
+        const value=card.querySelector('.value');
+        if(value)value.textContent=fmtMoney(total);
+      }
+    }catch(e){
+      console.error(e);
+      if(card.isConnected){
+        const value=card.querySelector('.value');
+        if(value)value.textContent='—';
+      }
+    }
   }
 
   async function openCommissionData31(){
@@ -97,16 +151,27 @@
     bulk.appendChild(actions);
   }
 
+  function showVersion31(){
+    const foot=document.querySelector('.sidebar-foot');
+    if(foot)foot.innerHTML='<span class="dot"></span> Ecossistema Sunshine · v3.32';
+  }
+
   document.addEventListener('click',e=>{
     const btn=e.target.closest('[data-copy-commission-closing31]');
     if(!btn)return;
     e.preventDefault();e.stopPropagation();copyClosing31(btn);
   },true);
 
-  function start31(){
+  function injectAll31(){
+    showVersion31();
     injectCopy31();
+    injectReceived31();
+  }
+
+  function start31(){
+    injectAll31();
     if(observer31)return;
-    observer31=new MutationObserver(()=>injectCopy31());
+    observer31=new MutationObserver(()=>injectAll31());
     observer31.observe(document.getElementById('content')||document.body,{childList:true,subtree:true});
   }
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start31);else start31();
