@@ -11,7 +11,7 @@
       .admin-tools46{display:flex;gap:7px;flex-wrap:wrap}.admin-tools46 .btn{white-space:nowrap}
       .admin-payment-list46{display:grid;gap:9px}.admin-payment-row46{display:flex;align-items:center;justify-content:space-between;gap:12px;border:1px solid #eadfd8;border-radius:12px;padding:11px 12px;background:#fffaf6}.admin-payment-row46 small{display:block;color:#806b62;margin-top:3px}.admin-payment-row46 .button-row{flex-shrink:0}
       .admin-readonly46{border:1px solid #eadfd8;background:#f8f4f1;border-radius:10px;padding:10px 12px;color:#705d55;line-height:1.45}.admin-readonly46 b{color:#3f241a}
-      .admin-service46{margin-left:8px}
+      .admin-service46,.admin-inline-work46{margin-left:8px}
       @media(max-width:720px){.sidebar-version-current{display:none}.admin-payment-row46{display:grid}.admin-payment-row46 .button-row,.admin-tools46{display:grid}.admin-payment-row46 button,.admin-tools46 button{width:100%}}
     `;document.head.appendChild(s);
   }
@@ -35,7 +35,13 @@
   }
 
   function decorateWork46(){
-    if(!isAdmin46()||state.view!=='trabalhos'||!state.selectedWork)return;
+    if(!isAdmin46()||state.view!=='trabalhos')return;
+    document.querySelectorAll('#content tr[data-work-id]').forEach(row=>{
+      if(row.querySelector('[data-admin-edit-work46]'))return;
+      const work=(state.works||[]).find(x=>x.id===row.dataset.workId);const td=row.querySelector('td:first-child');if(!work||!td)return;
+      const b=document.createElement('button');b.type='button';b.className='link-btn admin-inline-work46';b.dataset.adminEditWork46=work.id;b.textContent='Editar';td.appendChild(b);
+    });
+    if(!state.selectedWork)return;
     const work=state.selectedWork;
     const panels=[...document.querySelectorAll('#content article.panel')];
     const detail=panels.find(p=>(p.querySelector('h2')?.textContent||'').trim()===String(work.title||'').trim());
@@ -73,9 +79,7 @@
     });
   }
 
-  function decorate46(){
-    styles46();stabilizeFinance46();decorateWork46();decorateFinance46();decorateConfig46();
-  }
+  function decorate46(){styles46();stabilizeFinance46();decorateWork46();decorateFinance46();decorateConfig46()}
 
   async function openSalePayments46(saleId){
     if(!isAdmin46())return;
@@ -83,8 +87,8 @@
     try{
       const sq=await db.from('sales').select('id,client_id,total_amount,service_id,work_id,clients(full_name)').eq('id',saleId).maybeSingle();if(sq.error)throw sq.error;
       const aq=await db.from('payment_allocations').select('payment_id,amount').eq('sale_id',saleId);if(aq.error)throw aq.error;
-      const ids=[...new Set((aq.data||[]).map(x=>x.payment_id).filter(Boolean))];
-      let payments=[];if(ids.length){const pq=await db.from('payments').select('*').in('id',ids).order('paid_at',{ascending:false});if(pq.error)throw pq.error;payments=pq.data||[]}
+      const ids=[...new Set((aq.data||[]).map(x=>x.payment_id).filter(Boolean))];let payments=[];
+      if(ids.length){const pq=await db.from('payments').select('*').in('id',ids).order('paid_at',{ascending:false});if(pq.error)throw pq.error;payments=pq.data||[]}
       const allocBy=Object.fromEntries((aq.data||[]).map(x=>[x.payment_id,Number(x.amount||0)]));
       const service=byId(state.services||[],sq.data?.service_id),work=byId(state.works||[],sq.data?.work_id);
       const rows=payments.length?payments.map(p=>`<div class="admin-payment-row46"><div><b>${escapeHtml(p.source||'Pagamento')} · ${escapeHtml(p.payment_method||'')}</b><small>${fmtDateTime(p.paid_at||p.created_at)} · Alocado nesta venda: ${fmtMoney(allocBy[p.id]||0)}</small><small>${escapeHtml(p.external_ref?'Ref. '+p.external_ref:'Sem referência externa')}</small></div><div class="button-row"><b>${fmtMoney(p.gross_amount)}</b><button type="button" class="btn ghost" data-admin-edit-payment46="${p.id}">Editar</button></div></div>`).join(''):'<div class="empty-state compact">Nenhum pagamento associado a esta venda.</div>';
@@ -144,13 +148,11 @@
 
   const prevRender46=render;
   render=async function(){
-    const seq=++renderSeq46,start=performance.now();
-    await prevRender46();
-    if(seq!==renderSeq46)return;
-    setTimeout(decorate46,0);setTimeout(decorate46,450);
+    const seq=++renderSeq46,start=performance.now();await prevRender46();if(seq!==renderSeq46)return;
+    [0,450,1200,2500].forEach(delay=>setTimeout(()=>{if(seq===renderSeq46)decorate46()},delay));
     const ms=Math.round(performance.now()-start);if(ms>800)console.debug(`[Sunshine ${VERSION}] ${state.view} renderizou em ${ms}ms`);
   };
 
-  function start46(){styles46();document.documentElement.dataset.sunshineVersion=VERSION;setTimeout(decorate46,120)}
+  function start46(){styles46();document.documentElement.dataset.sunshineVersion=VERSION;[120,700,1800].forEach(d=>setTimeout(decorate46,d))}
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start46);else start46();
 })();
