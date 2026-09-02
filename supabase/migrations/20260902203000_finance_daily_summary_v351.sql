@@ -14,7 +14,9 @@ begin
     select ce.beneficiary_member_id,
       coalesce(sum(ce.amount) filter(where ce.status='DUE'),0)::numeric due,
       coalesce(sum(ce.amount) filter(where ce.status='PAID'),0)::numeric paid
-    from public.commission_entries ce join period_payments pp on pp.id=ce.payment_id
+    from public.commission_entries ce
+    join public.payment_allocations pa on pa.id=ce.payment_allocation_id
+    join period_payments pp on pp.id=pa.payment_id
     where ce.status in ('DUE','PAID') group by ce.beneficiary_member_id
   )
   select tm.id,tm.full_name,coalesce(ct.due,0),coalesce(ct.paid,0),r.total
