@@ -1,0 +1,43 @@
+name: Sunshine production version check
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+  schedule:
+    - cron: '17 * * * *'
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate JavaScript syntax
+        run: |
+          node --check assets/v47.js
+          node --check assets/v48.js
+          node --check assets/v49.js
+      - name: Read repository version
+        id: version
+        shell: bash
+        run: |
+          VERSION=$(grep -o 'meta name="sunshine-version" content="v[0-9.]*"' index.html | sed -E 's/.*content="(v[0-9.]+)"/\1/' | head -1)
+          test -n "$VERSION"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          grep -q 'assets/v47.js' index.html
+          grep -q 'assets/v48.js' index.html
+          grep -q 'assets/v49.js' index.html
+      - name: Verify both official domains
+        env:
+          EXPECTED: ${{ steps.version.outputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          for DOMAIN in https://sunshine.ymnegocios.com.br/ https://sunshine-ecossistema.vercel.app/; do
+            HTML=$(curl -fsSL --retry 3 --retry-delay 2 -H 'Cache-Control: no-cache' "$DOMAIN?version-check=${GITHUB_SHA}")
+            echo "$HTML" | grep -q "sunshine-version\" content=\"$EXPECTED"
+            echo "$HTML" | grep -q 'v47.js'
+            echo "$HTML" | grep -q 'v48.js'
+            echo "$HTML" | grep -q 'v49.js'
+          done
