@@ -83,7 +83,7 @@
     const wrap=document.createElement('div');
     wrap.className='asaas-beneficiary47';
     const listId='asaasClientSearchList47-'+Math.random().toString(36).slice(2);
-    const clients=[...(window.state?.clients||[])].sort((a,b)=>String(a.full_name||'').localeCompare(String(b.full_name||''),'pt-BR'));
+    const clients=[...(state?.clients||[])].sort((a,b)=>String(a.full_name||'').localeCompare(String(b.full_name||''),'pt-BR'));
     wrap.innerHTML=`<div><b>Buscar no Cliente 360</b><p>Use o nome da pessoa atendida, mesmo quando o PIX/cartão veio da conta de outra pessoa.</p></div>
       <input type="search" data-client-search47 list="${listId}" placeholder="Digite o nome do cliente" autocomplete="off">
       <datalist id="${listId}">${clients.map(c=>`<option value="${escapeHtml(c.full_name||'')}"></option>`).join('')}</datalist>
