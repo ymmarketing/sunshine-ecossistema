@@ -50,24 +50,23 @@
     const work=byId(state.works||[],form.querySelector('#agWork')?.value);
     const service=byId(state.services||[],form.querySelector('#agService')?.value);
     const amount=moneyN37(form.querySelector('#agAmount0')?.value);
-    return Math.max(amount,moneyN37(work?.unit_price||service?.default_price||0));
+    return moneyN37(work?.unit_price||service?.default_price||amount);
   }
   function setNewSaleMode37(form){
     const sel=form.querySelector('#agExistingSale37');const total=form.querySelector('#agSaleTotal37');const progress=form.querySelector('#agSaleProgress37');const amount=form.querySelector('#agAmount0');
     const sale=openSales37.find(s=>s.id===sel?.value);
     ['agService','agWork','agResponsible'].forEach(id=>{const el=form.querySelector('#'+id);if(el)el.disabled=Boolean(sale);});
+    if(amount)amount.removeAttribute('max');
     if(!sale){
-      if(amount)amount.removeAttribute('max');
       if(total){total.disabled=false;if(total.dataset.touched37!=='1')total.value=suggestedTotal37(form).toFixed(2);}
-      if(progress){progress.className='asaas-sale-progress37';progress.innerHTML='<b>Nova venda:</b> se este recebimento for só a primeira parcela, informe abaixo o valor total contratado. Os próximos pagamentos poderão ser adicionados à mesma venda.';}
+      if(progress){progress.className='asaas-sale-progress37';progress.innerHTML='<b>Nova venda:</b> o valor do serviço pode ser menor que o valor recebido. A diferença não vira crédito e a comissão é calculada sobre tudo que entrou.';}
       return;
     }
     if(form.querySelector('#agService'))form.querySelector('#agService').value=sale.service_id||'';
     if(form.querySelector('#agWork'))form.querySelector('#agWork').value=sale.work_id||'';
     if(form.querySelector('#agResponsible'))form.querySelector('#agResponsible').value=sale.responsible_member_id||'';
     if(total){total.value=sale.total.toFixed(2);total.disabled=true;}
-    if(amount){amount.max=sale.remaining.toFixed(2);if(moneyN37(amount.value)>sale.remaining+.005){amount.value=sale.remaining.toFixed(2);amount.dispatchEvent(new Event('input',{bubbles:true}));}}
-    if(progress){progress.className='asaas-sale-progress37 is-open';progress.innerHTML=`<b>Venda em aberto:</b> total ${fmtMoney(sale.total)} · já recebido ${fmtMoney(sale.received)} · saldo ${fmtMoney(sale.remaining)}. Este pagamento será somado a ela, sem criar outra venda.`;}
+    if(progress){progress.className='asaas-sale-progress37 is-open';progress.innerHTML=`<b>Venda em aberto:</b> total ${fmtMoney(sale.total)} · já recebido ${fmtMoney(sale.received)} · falta ${fmtMoney(sale.remaining)}. Se o cliente enviar acima do saldo, a diferença também fica como recebimento da Sunshine e entra na comissão.`;}
   }
 
   async function refreshOpenSaleOptions37(form){
@@ -88,10 +87,10 @@
       const amount=form.querySelector('#agAmount0');if(!amount)return;
       const anchor=form.querySelector('.asaas-multi-tools27')||form.querySelector('#agNotes')?.closest('label');
       const box=document.createElement('div');box.className='span-2 asaas-sale-mode37';
-      box.innerHTML=`<div class="span-2"><h3>Venda + recebimento no mesmo fluxo</h3><p>Se este pagamento é uma parcela de algo já vendido, escolha a venda em aberto. Se é a primeira parcela, crie a venda pelo valor total contratado — não apenas pelo valor recebido hoje.</p></div>
+      box.innerHTML=`<div class="span-2"><h3>Venda + recebimento no mesmo fluxo</h3><p>O valor do serviço e o valor recebido são informações diferentes. Se a pessoa mandar mais, a diferença fica na Sunshine, não vira crédito e entra na base da comissão.</p></div>
         <label class="span-2">Adicionar a uma venda em aberto<select id="agExistingSale37"><option value="">Não — criar uma nova venda</option></select></label>
-        <label>Valor total da venda<input id="agSaleTotal37" type="number" min="0.01" step="0.01" value="${moneyN37(amount.value).toFixed(2)}"></label>
-        <div id="agSaleProgress37" class="asaas-sale-progress37"><b>Nova venda:</b> informe o valor total contratado.</div>`;
+        <label>Valor do serviço / venda<input id="agSaleTotal37" type="number" min="0.01" step="0.01" value="${moneyN37(amount.value).toFixed(2)}"></label>
+        <div id="agSaleProgress37" class="asaas-sale-progress37"><b>Nova venda:</b> informe o valor normal do serviço. O recebido pode ser maior.</div>`;
       if(anchor)anchor.insertAdjacentElement('beforebegin',box);else form.appendChild(box);
       const total=box.querySelector('#agSaleTotal37');total.addEventListener('input',()=>total.dataset.touched37='1');
       box.querySelector('#agExistingSale37').addEventListener('change',()=>setNewSaleMode37(form));
@@ -103,17 +102,23 @@
   }
 
   function extraItems37(form){
-    return [...form.querySelectorAll('.asaas-extra-item27')].map(x=>({
-      existing_sale_id:null,
-      service_id:x.querySelector('.agExtraService27')?.value||null,
-      work_id:x.querySelector('.agExtraWork27')?.value||null,
-      responsible_member_id:x.querySelector('.agExtraResponsible27')?.value||null,
-      received_amount:moneyN37(x.querySelector('.agExtraAmount27')?.value),
-      sale_total:moneyN37(x.querySelector('.agExtraAmount27')?.value),
-      loved_person_name:x.querySelector('.agExtraLoved27')?.value.trim()||null,
-      rival_name:x.querySelector('.agExtraRival27')?.value.trim()||null,
-      notes:x.querySelector('.agExtraNotes27')?.value.trim()||null
-    }));
+    return [...form.querySelectorAll('.asaas-extra-item27')].map(x=>{
+      const serviceId=x.querySelector('.agExtraService27')?.value||null;
+      const workId=x.querySelector('.agExtraWork27')?.value||null;
+      const received=moneyN37(x.querySelector('.agExtraAmount27')?.value);
+      const service=byId(state.services||[],serviceId);const work=byId(state.works||[],workId);
+      return {
+        existing_sale_id:null,
+        service_id:serviceId,
+        work_id:workId,
+        responsible_member_id:x.querySelector('.agExtraResponsible27')?.value||null,
+        received_amount:received,
+        sale_total:moneyN37(work?.unit_price||service?.default_price||received),
+        loved_person_name:x.querySelector('.agExtraLoved27')?.value.trim()||null,
+        rival_name:x.querySelector('.agExtraRival27')?.value.trim()||null,
+        notes:x.querySelector('.agExtraNotes27')?.value.trim()||null
+      };
+    });
   }
 
   async function submit37(form){
@@ -145,7 +150,7 @@
       if(!item.existing_sale_id){
         if(!item.service_id&&!item.work_id){toast('Selecione serviço ou trabalho em todas as novas vendas.','error');return;}
         if(!item.responsible_member_id){toast('Defina o responsável em todas as novas vendas.','error');return;}
-        if(!(item.sale_total>0)||item.sale_total+0.009<item.received_amount){toast('O valor total da venda deve ser igual ou maior que o valor recebido.','error');return;}
+        if(!(item.sale_total>0)){toast('Informe o valor do serviço ou venda.','error');return;}
       }
     }
     const gross=moneyN37(form.dataset.gross27);const total=items.reduce((s,x)=>s+x.received_amount,0);
@@ -160,8 +165,8 @@
     btn.disabled=false;btn.textContent='Associar e concluir';
     if(error){toast(error.message,'error');return;}
     await loadReferenceData();document.getElementById('asaasGlobalOverlay')?.remove();
-    const reused=(data?.sales||[]).some(x=>x.existing_sale);const partial=(data?.sales||[]).some(x=>moneyN37(x.sale_total)>moneyN37(x.received_amount)+.005);
-    toast(reused?'Pagamento adicionado à venda existente. Saldo atualizado.':partial?'Venda criada pelo valor total e primeira parcela registrada.':'Pagamento associado com sucesso.');
+    const reused=(data?.sales||[]).some(x=>x.existing_sale);const partial=(data?.sales||[]).some(x=>moneyN37(x.sale_total)>moneyN37(x.received_amount)+.005);const diff=moneyN37(data?.difference_received);
+    toast(reused?'Pagamento adicionado à venda existente. Saldo atualizado.':diff>0?`Pagamento associado. ${fmtMoney(diff)} de diferença recebida, sem crédito ao cliente.`:partial?'Venda criada pelo valor do serviço e recebimento parcial registrado.':'Pagamento associado com sucesso.');
     if(window.refreshAsaasBell)await window.refreshAsaasBell();await render();
   }
 
