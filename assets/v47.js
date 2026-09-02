@@ -1,6 +1,7 @@
 /* Sunshine v3.47 — associação segura pagador ≠ cliente + busca mobile no Cliente 360 */
 (function(){
   const norm47=v=>String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toLowerCase();
+  const digits47=v=>String(v||'').replace(/\D/g,'');
 
   function ensureStyles47(){
     if(document.getElementById('sunshineV47Styles'))return;
@@ -12,10 +13,52 @@
       .asaas-beneficiary47 input{width:100%;min-height:44px}
       .asaas-beneficiary-status47{font-size:12px;font-weight:800;color:#256044;background:#eaf5ef;border-radius:10px;padding:9px 11px}
       .asaas-beneficiary-status47.wait{color:#875100;background:#fff3d7}
+      .asaas-beneficiary-status47.warn{color:#9a2d19;background:#fff0ea}
       .asaas-payer-note47{grid-column:1/-1;border-left:4px solid #b9472d;background:#fff5ef;padding:10px 12px;border-radius:8px;color:#735e54;font-size:12px;line-height:1.45}
       @media(max-width:720px){.asaas-beneficiary47{padding:12px}.asaas-beneficiary47 input{font-size:16px}}
     `;
     document.head.appendChild(s);
+  }
+
+  function safeMatch47(entry,clients){
+    if(entry?.matched_client_id){
+      const c=clients.find(x=>x.id===entry.matched_client_id);
+      if(c)return {client:c,reason:'associação indicada'};
+    }
+    const stages=[
+      ['cadastro do Asaas',entry?.asaas_customer_id,c=>String(c.asaas_customer_id||'')===String(entry.asaas_customer_id||'')],
+      ['documento',digits47(entry?.customer_document),c=>digits47(entry?.customer_document)&&digits47(c.document_number)===digits47(entry.customer_document)],
+      ['e-mail',String(entry?.customer_email||'').trim().toLowerCase(),c=>String(entry?.customer_email||'').trim()&&String(c.email||'').trim().toLowerCase()===String(entry.customer_email||'').trim().toLowerCase()],
+      ['telefone',digits47(entry?.customer_mobile_phone||entry?.customer_phone),c=>{const p=digits47(entry?.customer_mobile_phone||entry?.customer_phone);const cp=digits47(c.phone);return p.length>=8&&cp.length>=8&&cp.slice(-11)===p.slice(-11);}]
+    ];
+    for(const [reason,key,test] of stages){
+      if(!key)continue;
+      const matches=clients.filter(test);
+      if(matches.length===1)return {client:matches[0],reason};
+      if(matches.length>1)return {client:null,ambiguous:true,reason,count:matches.length};
+    }
+    return {client:null,ambiguous:false};
+  }
+
+  async function validateAutomaticChoice47(form,client,clients,sync,status){
+    const entryId=form.dataset.entryId27||'';
+    if(!entryId||state.demo||!db)return;
+    try{
+      const {data,error}=await db.from('asaas_incoming_payments')
+        .select('id,matched_client_id,asaas_customer_id,customer_document,customer_email,customer_phone,customer_mobile_phone')
+        .eq('id',entryId).maybeSingle();
+      if(error||!data)return;
+      const match=safeMatch47(data,clients);
+      if(match.ambiguous){
+        client.value='';client.dispatchEvent(new Event('change',{bubbles:true}));sync();
+        status.className='asaas-beneficiary-status47 warn';
+        status.textContent=`Há ${match.count} clientes com o mesmo ${match.reason}. Por segurança, escolha manualmente a pessoa atendida.`;
+        return;
+      }
+      if(match.client&&client.value!==match.client.id){
+        client.value=match.client.id;client.dispatchEvent(new Event('change',{bubbles:true}));sync();
+      }
+    }catch(e){console.error('asaas_safe_match47',e);}
   }
 
   function decorateResolve47(form){
@@ -72,6 +115,7 @@
     });
     client.addEventListener('change',sync);
     sync();
+    validateAutomaticChoice47(form,client,clients,sync,status);
 
     const divider=[...form.querySelectorAll('.form-divider')].find(x=>/criar|completar/i.test(x.textContent||''));
     if(divider)divider.textContent='Dados do pagador recebidos pelo Asaas (usados apenas se for criar um novo cliente)';
