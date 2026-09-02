@@ -1,6 +1,6 @@
-/* Sunshine v3.43 — estabilização pós-auditoria: Financeiro unificado sempre visível + versão fixa */
+/* Sunshine v3.44 — estabilização pós-auditoria: Financeiro unificado sempre visível + versão fixa */
 (function(){
-  const VERSION='v3.43';
+  const VERSION='v3.44';
   let timer43=null;
 
   function pin43(){
