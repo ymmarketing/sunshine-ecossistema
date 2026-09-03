@@ -1,6 +1,6 @@
 /* Sunshine v3.54 — lançamento manual completo e recuperação de pagamentos órfãos. */
 (function(){
-  const VERSION='v3.55';
+  const VERSION='v3.56';
   const uuid53=()=>crypto.randomUUID();
   const local53=v=>{const d=v?new Date(v):new Date(),z=n=>String(n).padStart(2,'0');return `${d.getFullYear()}-${z(d.getMonth()+1)}-${z(d.getDate())}T${z(d.getHours())}:${z(d.getMinutes())}`};
   const saleType53=s=>({CONSULTA:'CONSULTA',PERGUNTA:'PERGUNTA',MENSALIDADE:'MENSALIDADE'}[s?.category]||'OUTRO');
