@@ -23,6 +23,7 @@ jobs:
           node --check assets/v52.js
           node --check assets/v53.js
           node --check assets/v54.js
+          node --check assets/v55.js
       - name: Read repository version
         id: version
         shell: bash
@@ -38,6 +39,7 @@ jobs:
           grep -q 'assets/v52.js' index.html
           grep -q 'assets/v53.js' index.html
           grep -q 'assets/v54.js' index.html
+          grep -q 'assets/v55.js' index.html
       - name: Verify both official domains
         env:
           EXPECTED: ${{ steps.version.outputs.version }}
@@ -55,6 +57,7 @@ jobs:
             echo "$HTML" | grep -q 'v52.js'
             echo "$HTML" | grep -q 'v53.js'
             echo "$HTML" | grep -q 'v54.js'
+            echo "$HTML" | grep -q 'v55.js'
           done
 
           HTML_ONE=$(curl -fsSL --retry 3 --retry-delay 2 -H 'Cache-Control: no-cache' "https://sunshine.ymnegocios.com.br/?version-check=${GITHUB_SHA}")
