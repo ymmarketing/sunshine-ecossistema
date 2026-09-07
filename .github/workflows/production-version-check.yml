@@ -7,12 +7,17 @@ on:
   schedule:
     - cron: '17 * * * *'
 
+concurrency:
+  group: sunshine-production-version-check
+  cancel-in-progress: true
+
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
+
       - name: Validate JavaScript syntax
         run: |
           node --check assets/v47.js
@@ -25,6 +30,7 @@ jobs:
           node --check assets/v54.js
           node --check assets/v55.js
           node --check assets/v56.js
+
       - name: Read repository version
         id: version
         shell: bash
@@ -42,32 +48,69 @@ jobs:
           grep -q 'assets/v54.js' index.html
           grep -q 'assets/v55.js' index.html
           grep -q 'assets/v56.js' index.html
+
       - name: Verify both official domains
         env:
           EXPECTED: ${{ steps.version.outputs.version }}
+          MAX_ATTEMPTS: '60'
+          SLEEP_SECONDS: '30'
         shell: bash
         run: |
-          set -euo pipefail
-          for DOMAIN in https://sunshine.ymnegocios.com.br/ https://sunshine-ecossistema.vercel.app/; do
-            HTML=$(curl -fsSL --retry 3 --retry-delay 2 -H 'Cache-Control: no-cache' "$DOMAIN?version-check=${GITHUB_SHA}")
-            echo "$HTML" | grep -q "sunshine-version\" content=\"$EXPECTED"
-            echo "$HTML" | grep -q 'v47.js'
-            echo "$HTML" | grep -q 'v48.js'
-            echo "$HTML" | grep -q 'v49.js'
-            echo "$HTML" | grep -q 'v50.js'
-            echo "$HTML" | grep -q 'v51.js'
-            echo "$HTML" | grep -q 'v52.js'
-            echo "$HTML" | grep -q 'v53.js'
-            echo "$HTML" | grep -q 'v54.js'
-            echo "$HTML" | grep -q 'v55.js'
-            echo "$HTML" | grep -q 'v56.js'
+          set -uo pipefail
+
+          DOMAIN_ONE='https://sunshine.ymnegocios.com.br/'
+          DOMAIN_TWO='https://sunshine-ecossistema.vercel.app/'
+
+          fetch_url() {
+            local url="$1"
+            curl -fsSL \
+              --connect-timeout 5 \
+              --max-time 20 \
+              --retry 2 \
+              --retry-delay 2 \
+              -H 'Cache-Control: no-cache' \
+              "${url}?version-check=${GITHUB_SHA}"
+          }
+
+          verify_html() {
+            local html="$1"
+            grep -Fq "meta name=\"sunshine-version\" content=\"${EXPECTED}\"" <<< "$html" || return 1
+            for asset in v47.js v48.js v49.js v50.js v51.js v52.js v53.js v54.js v55.js v56.js; do
+              grep -Fq "$asset" <<< "$html" || return 1
+            done
+          }
+
+          verify_service_worker() {
+            local sw="$1"
+            grep -Fq "CACHE_NAME='sunshine-${EXPECTED}'" <<< "$sw" || return 1
+            grep -Fq 'skipWaiting' <<< "$sw" || return 1
+            grep -Fq 'clients.claim' <<< "$sw" || return 1
+          }
+
+          for attempt in $(seq 1 "$MAX_ATTEMPTS"); do
+            echo "Production check ${attempt}/${MAX_ATTEMPTS} — expecting ${EXPECTED}"
+
+            HTML_ONE=$(fetch_url "$DOMAIN_ONE" 2>/dev/null || true)
+            HTML_TWO=$(fetch_url "$DOMAIN_TWO" 2>/dev/null || true)
+
+            if verify_html "$HTML_ONE" && verify_html "$HTML_TWO"; then
+              HASH_ONE=$(printf '%s' "$HTML_ONE" | sha256sum | cut -d' ' -f1)
+              HASH_TWO=$(printf '%s' "$HTML_TWO" | sha256sum | cut -d' ' -f1)
+
+              if [[ "$HASH_ONE" == "$HASH_TWO" ]]; then
+                SW=$(fetch_url 'https://sunshine.ymnegocios.com.br/sw.js' 2>/dev/null || true)
+                if verify_service_worker "$SW"; then
+                  echo "Production verified: ${EXPECTED} is active and identical on both official domains."
+                  exit 0
+                fi
+              fi
+            fi
+
+            if [[ "$attempt" -lt "$MAX_ATTEMPTS" ]]; then
+              echo 'Production has not converged yet; retrying after propagation interval.'
+              sleep "$SLEEP_SECONDS"
+            fi
           done
 
-          HTML_ONE=$(curl -fsSL --retry 3 --retry-delay 2 -H 'Cache-Control: no-cache' "https://sunshine.ymnegocios.com.br/?version-check=${GITHUB_SHA}")
-          HTML_TWO=$(curl -fsSL --retry 3 --retry-delay 2 -H 'Cache-Control: no-cache' "https://sunshine-ecossistema.vercel.app/?version-check=${GITHUB_SHA}")
-          test "$(printf '%s' "$HTML_ONE" | sha256sum | cut -d' ' -f1)" = "$(printf '%s' "$HTML_TWO" | sha256sum | cut -d' ' -f1)"
-
-          SW=$(curl -fsSL --retry 3 --retry-delay 2 -H 'Cache-Control: no-cache' "https://sunshine.ymnegocios.com.br/sw.js?version-check=${GITHUB_SHA}")
-          echo "$SW" | grep -q "CACHE_NAME='sunshine-${EXPECTED}'"
-          echo "$SW" | grep -q 'skipWaiting'
-          echo "$SW" | grep -q 'clients.claim'
+          echo "Production did not converge to ${EXPECTED} on both official domains within the validation window." >&2
+          exit 1
