@@ -26,16 +26,19 @@ jobs:
             node --check "$f"
           done
 
-      - name: Guard login bootstrap and client association
+      - name: Guard login and single client association
         shell: bash
         run: |
           set -euo pipefail
-          grep -Fq 'data-sunshine-version="v3.61"' index.html
+          grep -Fq 'data-sunshine-version="v3.62"' index.html
           grep -Fq "typeof bootstrap==='function'" index.html
-          grep -Fq "document.addEventListener('DOMContentLoaded',bootstrap)" assets/bundle.js
-          grep -Fq "fn!=='search_clients_v349'" assets/bundle.js
-          grep -Fq 'nenhuma cliente foi selecionada' assets/bundle.js
-          grep -Fq "CACHE_NAME='sunshine-v3.61'" sw.js
+          grep -Fq '/assets/v58.js?v=3.62' index.html
+          grep -Fq 'asaas-beneficiary47{display:none!important}' assets/v58.js
+          grep -Fq 'Digite nome, telefone ou e-mail' assets/v58.js
+          grep -Fq 'Cliente selecionado:' assets/v58.js
+          grep -Fq "fn!=='search_clients_v349'" assets/v58.js
+          grep -Fq "v_digits<>''" supabase/migrations/20260908204500_fix_client_search_v359.sql
+          grep -Fq "CACHE_NAME='sunshine-v3.62'" sw.js
 
       - name: Verify both official domains
         shell: bash
@@ -43,11 +46,14 @@ jobs:
           set -euo pipefail
           for domain in 'https://sunshine.ymnegocios.com.br/' 'https://sunshine-ecossistema.vercel.app/'; do
             html=$(curl -fsSL --connect-timeout 8 --max-time 25 -H 'Cache-Control: no-cache' "${domain}?health=${GITHUB_SHA}")
-            grep -Fq 'data-sunshine-version="v3.61"' <<< "$html"
-            grep -Fq "typeof bootstrap==='function'" <<< "$html"
+            grep -Fq 'data-sunshine-version="v3.62"' <<< "$html"
+            grep -Fq '/assets/v58.js?v=3.62' <<< "$html"
             grep -Fq 'id="loginForm"' <<< "$html"
+            patch=$(curl -fsSL --connect-timeout 8 --max-time 25 -H 'Cache-Control: no-cache' "${domain}assets/v58.js?health=${GITHUB_SHA}")
+            grep -Fq 'asaas-beneficiary47{display:none!important}' <<< "$patch"
+            grep -Fq 'Cliente selecionado:' <<< "$patch"
           done
           sw=$(curl -fsSL --connect-timeout 8 --max-time 25 -H 'Cache-Control: no-cache' "https://sunshine.ymnegocios.com.br/sw.js?health=${GITHUB_SHA}")
-          grep -Fq "CACHE_NAME='sunshine-v3.61'" <<< "$sw"
+          grep -Fq "CACHE_NAME='sunshine-v3.62'" <<< "$sw"
           grep -Fq 'skipWaiting' <<< "$sw"
           grep -Fq 'clients.claim' <<< "$sw"
