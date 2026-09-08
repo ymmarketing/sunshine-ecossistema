@@ -1,6 +1,6 @@
-/* Sunshine v3.59 — associação definitiva de clientes existentes em pagamentos Asaas. */
+/* Sunshine v3.60 — associação definitiva de clientes existentes em pagamentos Asaas. */
 (function(){
-  const VERSION='v3.59';
+  const VERSION='v3.60';
   const norm=v=>String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toLowerCase();
   const digits=v=>String(v||'').replace(/\D/g,'');
 
@@ -22,8 +22,8 @@
   }
 
   function patchSearchRpc(){
-    if(!db||db.__sunshineSearch359)return;
-    db.__sunshineSearch359=true;
+    if(!db||db.__sunshineSearch360)return;
+    db.__sunshineSearch360=true;
     const original=db.rpc.bind(db);
     db.rpc=async function(fn,args={},options){
       if(fn!=='search_clients_v349')return original(fn,args,options);
@@ -64,7 +64,7 @@
     const input=picker.querySelector('input[type="search"]');
     if(!input)return;
 
-    if(!picker.querySelector('[data-association-help359]')){
+    if(!picker.querySelector('[data-association-help360]')){
       const help=document.createElement('div');
       help.dataset.associationHelp359='1';
       help.style.gridColumn='1/-1';
@@ -76,7 +76,7 @@
       picker.appendChild(help);
     }
 
-    let status=picker.parentElement?.querySelector('[data-association-status359]');
+    let status=picker.parentElement?.querySelector('[data-association-status360]');
     if(!status){
       status=document.createElement('div');
       status.dataset.associationStatus359='1';
@@ -101,15 +101,15 @@
         status.style.background='#fff3d7';status.style.color='#875100';
       }
     };
-    if(!picker.dataset.sync359){
-      picker.dataset.sync359='1';
+    if(!picker.dataset.sync360){
+      picker.dataset.sync360='1';
       input.addEventListener('input',sync);
       select.addEventListener('change',sync);
     }
     sync();
 
-    if(!form.dataset.guard359){
-      form.dataset.guard359='1';
+    if(!form.dataset.guard360){
+      form.dataset.guard360='1';
       form.addEventListener('submit',e=>{
         const typed=input.value.trim();
         if(typed.length>=2 && !select.value){
@@ -130,7 +130,7 @@
 
   function pinVersion(){
     document.documentElement.dataset.sunshineVersion=VERSION;
-    document.querySelectorAll('.sidebar-version-current').forEach(el=>{el.innerHTML='<span class="dot"></span> Ecossistema Sunshine · v3.59';});
+    document.querySelectorAll('.sidebar-version-current').forEach(el=>{el.innerHTML='<span class="dot"></span> Ecossistema Sunshine · v3.60';});
   }
 
   const obs=new MutationObserver(()=>{run();pinVersion();});
