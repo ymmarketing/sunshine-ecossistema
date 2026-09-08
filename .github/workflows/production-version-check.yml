@@ -30,18 +30,21 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          grep -Fq 'data-sunshine-version="v3.63"' index.html
+          grep -Fq 'data-sunshine-version="v3.64"' index.html
           grep -Fq "typeof bootstrap==='function'" index.html
-          grep -Fq '/assets/v58.js?v=3.63' index.html
+          grep -Fq '/assets/v58.js?v=3.64' index.html
           grep -Fq 'asaas-beneficiary47{display:none!important}' assets/v58.js
           grep -Fq 'Digite nome, telefone ou e-mail' assets/v58.js
+          grep -Fq 'Cadastrar nova pessoa' assets/v58.js
+          grep -Fq 'O pagador é a pessoa atendida' assets/v58.js
           grep -Fq 'Quantas pessoas?' assets/v58.js
           grep -Fq 'Informe o nome de todas as pessoas inscritas.' assets/v58.js
           grep -Fq "fn==='search_clients_v349'" assets/v58.js
+          grep -Fq 'payer_snapshot' supabase/migrations/20260908233000_asaas_inline_new_client_and_payer_snapshot_v364.sql
+          grep -Fq "'ASAAS',v_member_id,v_member_id" supabase/migrations/20260908233000_asaas_inline_new_client_and_payer_snapshot_v364.sql
           grep -Fq "participants" supabase/migrations/20260908214000_asaas_multi_participants_v363.sql
-          grep -Fq "v_quantity" supabase/migrations/20260908214000_asaas_multi_participants_v363.sql
           grep -Fq "v_digits<>''" supabase/migrations/20260908204500_fix_client_search_v359.sql
-          grep -Fq "CACHE_NAME='sunshine-v3.63'" sw.js
+          grep -Fq "CACHE_NAME='sunshine-v3.64'" sw.js
           test -f docs/FLUXO_FINANCEIRO_INSCRICOES_V1.md
 
       - name: Verify both official domains
@@ -50,15 +53,15 @@ jobs:
           set -euo pipefail
           for domain in 'https://sunshine.ymnegocios.com.br/' 'https://sunshine-ecossistema.vercel.app/'; do
             html=$(curl -fsSL --connect-timeout 8 --max-time 25 -H 'Cache-Control: no-cache' "${domain}?health=${GITHUB_SHA}")
-            grep -Fq 'data-sunshine-version="v3.63"' <<< "$html"
-            grep -Fq '/assets/v58.js?v=3.63' <<< "$html"
+            grep -Fq 'data-sunshine-version="v3.64"' <<< "$html"
+            grep -Fq '/assets/v58.js?v=3.64' <<< "$html"
             grep -Fq 'id="loginForm"' <<< "$html"
             patch=$(curl -fsSL --connect-timeout 8 --max-time 25 -H 'Cache-Control: no-cache' "${domain}assets/v58.js?health=${GITHUB_SHA}")
-            grep -Fq 'asaas-beneficiary47{display:none!important}' <<< "$patch"
-            grep -Fq 'Cliente selecionado:' <<< "$patch"
+            grep -Fq 'Cadastrar nova pessoa' <<< "$patch"
+            grep -Fq 'O pagador é a pessoa atendida' <<< "$patch"
             grep -Fq 'Quantas pessoas?' <<< "$patch"
           done
           sw=$(curl -fsSL --connect-timeout 8 --max-time 25 -H 'Cache-Control: no-cache' "https://sunshine.ymnegocios.com.br/sw.js?health=${GITHUB_SHA}")
-          grep -Fq "CACHE_NAME='sunshine-v3.63'" <<< "$sw"
+          grep -Fq "CACHE_NAME='sunshine-v3.64'" <<< "$sw"
           grep -Fq 'skipWaiting' <<< "$sw"
           grep -Fq 'clients.claim' <<< "$sw"
