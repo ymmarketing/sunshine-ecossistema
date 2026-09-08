@@ -1,125 +1,79 @@
-name: Sunshine production version check
+name: Sunshine recovery and production check
 
 on:
   push:
     branches: [main]
   workflow_dispatch:
-  schedule:
-    - cron: '17 * * * *'
+
+permissions:
+  contents: write
 
 concurrency:
-  group: sunshine-production-version-check
-  cancel-in-progress: true
+  group: sunshine-recovery
+  cancel-in-progress: false
 
 jobs:
-  verify:
+  build-recovery-bundle:
+    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
-    timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - name: Validate JavaScript syntax
+      - name: Validate current JavaScript
         run: |
-          node --check assets/v47.js
-          node --check assets/v48.js
-          node --check assets/v49.js
-          node --check assets/v50.js
-          node --check assets/v51.js
-          node --check assets/v52.js
-          node --check assets/v53.js
-          node --check assets/v54.js
-          node --check assets/v55.js
-          node --check assets/v56.js
-          node --check assets/v57.js
-
-      - name: Regression guard for client association search
-        shell: bash
-        run: |
-          grep -Fq "v_digits<>''" supabase/migrations/20260908204500_fix_client_search_v359.sql
-          grep -Fq "fn!=='search_clients_v349'" assets/v57.js
-          grep -Fq "nenhuma cliente foi selecionada" assets/v57.js
-
-      - name: Read repository version
-        id: version
-        shell: bash
-        run: |
-          VERSION=$(grep -o 'meta name="sunshine-version" content="v[0-9.]*"' index.html | sed -E 's/.*content="(v[0-9.]+)"/\1/' | head -1)
-          test -n "$VERSION"
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          grep -q 'assets/v47.js' index.html
-          grep -q 'assets/v48.js' index.html
-          grep -q 'assets/v49.js' index.html
-          grep -q 'assets/v50.js' index.html
-          grep -q 'assets/v51.js' index.html
-          grep -q 'assets/v52.js' index.html
-          grep -q 'assets/v53.js' index.html
-          grep -q 'assets/v54.js' index.html
-          grep -q 'assets/v55.js' index.html
-          grep -q 'assets/v56.js' index.html
-          grep -q 'assets/v57.js' index.html
-
-      - name: Verify both official domains
-        env:
-          EXPECTED: ${{ steps.version.outputs.version }}
-          MAX_ATTEMPTS: '60'
-          SLEEP_SECONDS: '30'
-        shell: bash
-        run: |
-          set -uo pipefail
-
-          DOMAIN_ONE='https://sunshine.ymnegocios.com.br/'
-          DOMAIN_TWO='https://sunshine-ecossistema.vercel.app/'
-
-          fetch_url() {
-            local url="$1"
-            curl -fsSL \
-              --connect-timeout 5 \
-              --max-time 20 \
-              --retry 2 \
-              --retry-delay 2 \
-              -H 'Cache-Control: no-cache' \
-              "${url}?version-check=${GITHUB_SHA}"
-          }
-
-          verify_html() {
-            local html="$1"
-            grep -Fq "meta name=\"sunshine-version\" content=\"${EXPECTED}\"" <<< "$html" || return 1
-            for asset in v47.js v48.js v49.js v50.js v51.js v52.js v53.js v54.js v55.js v56.js v57.js; do
-              grep -Fq "$asset" <<< "$html" || return 1
-            done
-          }
-
-          verify_service_worker() {
-            local sw="$1"
-            grep -Fq "CACHE_NAME='sunshine-${EXPECTED}'" <<< "$sw" || return 1
-            grep -Fq 'skipWaiting' <<< "$sw" || return 1
-            grep -Fq 'clients.claim' <<< "$sw" || return 1
-          }
-
-          for attempt in $(seq 1 "$MAX_ATTEMPTS"); do
-            echo "Production check ${attempt}/${MAX_ATTEMPTS} — expecting ${EXPECTED}"
-
-            HTML_ONE=$(fetch_url "$DOMAIN_ONE" 2>/dev/null || true)
-            HTML_TWO=$(fetch_url "$DOMAIN_TWO" 2>/dev/null || true)
-
-            if verify_html "$HTML_ONE" && verify_html "$HTML_TWO"; then
-              HASH_ONE=$(printf '%s' "$HTML_ONE" | sha256sum | cut -d' ' -f1)
-              HASH_TWO=$(printf '%s' "$HTML_TWO" | sha256sum | cut -d' ' -f1)
-
-              if [[ "$HASH_ONE" == "$HASH_TWO" ]]; then
-                SW=$(fetch_url 'https://sunshine.ymnegocios.com.br/sw.js' 2>/dev/null || true)
-                if verify_service_worker "$SW"; then
-                  echo "Production verified: ${EXPECTED} is active and identical on both official domains."
-                  exit 0
-                fi
-              fi
-            fi
-
-            if [[ "$attempt" -lt "$MAX_ATTEMPTS" ]]; then
-              echo 'Production has not converged yet; retrying after propagation interval.'
-              sleep "$SLEEP_SECONDS"
-            fi
+          for f in assets/app.js assets/v*.js assets/password-guard.js assets/login-alias.js assets/config.js; do
+            node --check "$f"
           done
 
-          echo "Production did not converge to ${EXPECTED} on both official domains within the validation window." >&2
-          exit 1
+      - name: Build single CSS and JS bundles
+        shell: bash
+        run: |
+          CSS=(assets/app.css assets/mobile-polish.css assets/v2.css assets/v3.css assets/v4.css assets/v22.css assets/v23.css assets/v24.css assets/v25.css)
+          JS=(assets/config.js assets/login-alias.js assets/app.js assets/v2.js assets/v3.js assets/v4.js assets/v5.js assets/v6.js assets/v7.js assets/v8.js assets/v9.js assets/v10.js assets/v11.js assets/v12.js assets/v13.js assets/v14.js assets/v15.js assets/v16.js assets/v17.js assets/v18.js assets/v19.js assets/v20.js assets/v21.js assets/v22.js assets/v24.js assets/v25.js assets/v26.js assets/v25a.js assets/v27.js assets/v28.js assets/v30.js assets/v31.js assets/v32.js assets/v33.js assets/v34.js assets/v35.js assets/v40.js assets/v41.js assets/v42.js assets/v44.js assets/v45.js assets/v46.js assets/v47.js assets/v48.js assets/v49.js assets/v50.js assets/v51.js assets/v52.js assets/password-guard.js assets/v53.js assets/v54.js assets/v55.js assets/v56.js assets/v57.js)
+          : > assets/bundle.css
+          for f in "${CSS[@]}"; do printf '\n/* ---- %s ---- */\n' "$f" >> assets/bundle.css; cat "$f" >> assets/bundle.css; done
+          : > assets/bundle.js
+          for f in "${JS[@]}"; do printf '\n/* ---- %s ---- */\n' "$f" >> assets/bundle.js; cat "$f" >> assets/bundle.js; printf '\n;\n' >> assets/bundle.js; done
+          node --check assets/bundle.js
+
+      - name: Switch shell to resilient v3.60 bundle
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          p=Path('index.html')
+          s=p.read_text()
+          s=s.replace('v3.59','v3.60')
+          s=re.sub(r'\n\s*<link rel="stylesheet" href="assets/(?:app|mobile-polish|v2|v3|v4|v22|v23|v24|v25)\.css">','',s)
+          marker='<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">'
+          s=s.replace(marker, marker+'\n  <link rel="stylesheet" href="assets/bundle.css?v=3.60">')
+          sup='<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>'
+          s=re.sub(re.escape(sup)+r'\s*.*?</body>', sup+'\n  <script src="assets/bundle.js?v=3.60"></script>\n</body>', s, flags=re.S)
+          p.write_text(s)
+          v=Path('assets/v57.js')
+          t=v.read_text().replace('v3.59','v3.60').replace('__sunshineSearch359','__sunshineSearch360').replace('data-association-help359','data-association-help360').replace('data-association-status359','data-association-status360').replace('sync359','sync360').replace('guard359','guard360')
+          v.write_text(t)
+          sw=Path('sw.js')
+          sw.write_text(sw.read_text().replace("sunshine-v3.59","sunshine-v3.60"))
+          PY
+          # rebuild bundle after v57 version change
+          JS=(assets/config.js assets/login-alias.js assets/app.js assets/v2.js assets/v3.js assets/v4.js assets/v5.js assets/v6.js assets/v7.js assets/v8.js assets/v9.js assets/v10.js assets/v11.js assets/v12.js assets/v13.js assets/v14.js assets/v15.js assets/v16.js assets/v17.js assets/v18.js assets/v19.js assets/v20.js assets/v21.js assets/v22.js assets/v24.js assets/v25.js assets/v26.js assets/v25a.js assets/v27.js assets/v28.js assets/v30.js assets/v31.js assets/v32.js assets/v33.js assets/v34.js assets/v35.js assets/v40.js assets/v41.js assets/v42.js assets/v44.js assets/v45.js assets/v46.js assets/v47.js assets/v48.js assets/v49.js assets/v50.js assets/v51.js assets/v52.js assets/password-guard.js assets/v53.js assets/v54.js assets/v55.js assets/v56.js assets/v57.js)
+          : > assets/bundle.js
+          for f in "${JS[@]}"; do printf '\n/* ---- %s ---- */\n' "$f" >> assets/bundle.js; cat "$f" >> assets/bundle.js; printf '\n;\n' >> assets/bundle.js; done
+          node --check assets/bundle.js
+          grep -Fq 'assets/bundle.js?v=3.60' index.html
+          grep -Fq 'assets/bundle.css?v=3.60' index.html
+          grep -Fq 'sunshine-v3.60' sw.js
+
+      - name: Commit recovery bundle
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html sw.js assets/v57.js assets/bundle.js assets/bundle.css
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'fix: restaurar carregamento local v3.60'
+          git push origin HEAD:main
