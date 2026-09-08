@@ -1,4 +1,4 @@
-const CACHE_NAME='sunshine-v3.63';
+const CACHE_NAME='sunshine-v3.64';
 
 self.addEventListener('install',event=>{ self.skipWaiting(); });
 self.addEventListener('activate',event=>{
