@@ -1,79 +1,53 @@
-name: Sunshine recovery and production check
+name: Sunshine production health check
 
 on:
   push:
     branches: [main]
   workflow_dispatch:
-
-permissions:
-  contents: write
+  schedule:
+    - cron: '17 * * * *'
 
 concurrency:
-  group: sunshine-recovery
-  cancel-in-progress: false
+  group: sunshine-production-health
+  cancel-in-progress: true
 
 jobs:
-  build-recovery-bundle:
-    if: github.actor != 'github-actions[bot]'
+  verify:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
-      - name: Validate current JavaScript
+      - name: Validate JavaScript syntax
+        shell: bash
         run: |
-          for f in assets/app.js assets/v*.js assets/password-guard.js assets/login-alias.js assets/config.js; do
+          set -euo pipefail
+          for f in assets/app.js assets/v*.js assets/password-guard.js assets/login-alias.js assets/config.js assets/bundle.js; do
             node --check "$f"
           done
 
-      - name: Build single CSS and JS bundles
+      - name: Guard login bootstrap and client association
         shell: bash
         run: |
-          CSS=(assets/app.css assets/mobile-polish.css assets/v2.css assets/v3.css assets/v4.css assets/v22.css assets/v23.css assets/v24.css assets/v25.css)
-          JS=(assets/config.js assets/login-alias.js assets/app.js assets/v2.js assets/v3.js assets/v4.js assets/v5.js assets/v6.js assets/v7.js assets/v8.js assets/v9.js assets/v10.js assets/v11.js assets/v12.js assets/v13.js assets/v14.js assets/v15.js assets/v16.js assets/v17.js assets/v18.js assets/v19.js assets/v20.js assets/v21.js assets/v22.js assets/v24.js assets/v25.js assets/v26.js assets/v25a.js assets/v27.js assets/v28.js assets/v30.js assets/v31.js assets/v32.js assets/v33.js assets/v34.js assets/v35.js assets/v40.js assets/v41.js assets/v42.js assets/v44.js assets/v45.js assets/v46.js assets/v47.js assets/v48.js assets/v49.js assets/v50.js assets/v51.js assets/v52.js assets/password-guard.js assets/v53.js assets/v54.js assets/v55.js assets/v56.js assets/v57.js)
-          : > assets/bundle.css
-          for f in "${CSS[@]}"; do printf '\n/* ---- %s ---- */\n' "$f" >> assets/bundle.css; cat "$f" >> assets/bundle.css; done
-          : > assets/bundle.js
-          for f in "${JS[@]}"; do printf '\n/* ---- %s ---- */\n' "$f" >> assets/bundle.js; cat "$f" >> assets/bundle.js; printf '\n;\n' >> assets/bundle.js; done
-          node --check assets/bundle.js
+          set -euo pipefail
+          grep -Fq 'data-sunshine-version="v3.61"' index.html
+          grep -Fq "typeof bootstrap==='function'" index.html
+          grep -Fq "document.addEventListener('DOMContentLoaded',bootstrap)" assets/bundle.js
+          grep -Fq "fn!=='search_clients_v349'" assets/bundle.js
+          grep -Fq 'nenhuma cliente foi selecionada' assets/bundle.js
+          grep -Fq "CACHE_NAME='sunshine-v3.61'" sw.js
 
-      - name: Switch shell to resilient v3.60 bundle
+      - name: Verify both official domains
         shell: bash
         run: |
-          python - <<'PY'
-          from pathlib import Path
-          import re
-          p=Path('index.html')
-          s=p.read_text()
-          s=s.replace('v3.59','v3.60')
-          s=re.sub(r'\n\s*<link rel="stylesheet" href="assets/(?:app|mobile-polish|v2|v3|v4|v22|v23|v24|v25)\.css">','',s)
-          marker='<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">'
-          s=s.replace(marker, marker+'\n  <link rel="stylesheet" href="assets/bundle.css?v=3.60">')
-          sup='<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>'
-          s=re.sub(re.escape(sup)+r'\s*.*?</body>', sup+'\n  <script src="assets/bundle.js?v=3.60"></script>\n</body>', s, flags=re.S)
-          p.write_text(s)
-          v=Path('assets/v57.js')
-          t=v.read_text().replace('v3.59','v3.60').replace('__sunshineSearch359','__sunshineSearch360').replace('data-association-help359','data-association-help360').replace('data-association-status359','data-association-status360').replace('sync359','sync360').replace('guard359','guard360')
-          v.write_text(t)
-          sw=Path('sw.js')
-          sw.write_text(sw.read_text().replace("sunshine-v3.59","sunshine-v3.60"))
-          PY
-          # rebuild bundle after v57 version change
-          JS=(assets/config.js assets/login-alias.js assets/app.js assets/v2.js assets/v3.js assets/v4.js assets/v5.js assets/v6.js assets/v7.js assets/v8.js assets/v9.js assets/v10.js assets/v11.js assets/v12.js assets/v13.js assets/v14.js assets/v15.js assets/v16.js assets/v17.js assets/v18.js assets/v19.js assets/v20.js assets/v21.js assets/v22.js assets/v24.js assets/v25.js assets/v26.js assets/v25a.js assets/v27.js assets/v28.js assets/v30.js assets/v31.js assets/v32.js assets/v33.js assets/v34.js assets/v35.js assets/v40.js assets/v41.js assets/v42.js assets/v44.js assets/v45.js assets/v46.js assets/v47.js assets/v48.js assets/v49.js assets/v50.js assets/v51.js assets/v52.js assets/password-guard.js assets/v53.js assets/v54.js assets/v55.js assets/v56.js assets/v57.js)
-          : > assets/bundle.js
-          for f in "${JS[@]}"; do printf '\n/* ---- %s ---- */\n' "$f" >> assets/bundle.js; cat "$f" >> assets/bundle.js; printf '\n;\n' >> assets/bundle.js; done
-          node --check assets/bundle.js
-          grep -Fq 'assets/bundle.js?v=3.60' index.html
-          grep -Fq 'assets/bundle.css?v=3.60' index.html
-          grep -Fq 'sunshine-v3.60' sw.js
-
-      - name: Commit recovery bundle
-        shell: bash
-        run: |
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add index.html sw.js assets/v57.js assets/bundle.js assets/bundle.css
-          if git diff --cached --quiet; then exit 0; fi
-          git commit -m 'fix: restaurar carregamento local v3.60'
-          git push origin HEAD:main
+          set -euo pipefail
+          for domain in 'https://sunshine.ymnegocios.com.br/' 'https://sunshine-ecossistema.vercel.app/'; do
+            html=$(curl -fsSL --connect-timeout 8 --max-time 25 -H 'Cache-Control: no-cache' "${domain}?health=${GITHUB_SHA}")
+            grep -Fq 'data-sunshine-version="v3.61"' <<< "$html"
+            grep -Fq "typeof bootstrap==='function'" <<< "$html"
+            grep -Fq 'id="loginForm"' <<< "$html"
+          done
+          sw=$(curl -fsSL --connect-timeout 8 --max-time 25 -H 'Cache-Control: no-cache' "https://sunshine.ymnegocios.com.br/sw.js?health=${GITHUB_SHA}")
+          grep -Fq "CACHE_NAME='sunshine-v3.61'" <<< "$sw"
+          grep -Fq 'skipWaiting' <<< "$sw"
+          grep -Fq 'clients.claim' <<< "$sw"
