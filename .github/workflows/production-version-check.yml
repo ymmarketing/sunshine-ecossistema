@@ -30,6 +30,14 @@ jobs:
           node --check assets/v54.js
           node --check assets/v55.js
           node --check assets/v56.js
+          node --check assets/v57.js
+
+      - name: Regression guard for client association search
+        shell: bash
+        run: |
+          grep -Fq "v_digits<>''" supabase/migrations/20260908204500_fix_client_search_v359.sql
+          grep -Fq "fn!=='search_clients_v349'" assets/v57.js
+          grep -Fq "nenhuma cliente foi selecionada" assets/v57.js
 
       - name: Read repository version
         id: version
@@ -48,6 +56,7 @@ jobs:
           grep -q 'assets/v54.js' index.html
           grep -q 'assets/v55.js' index.html
           grep -q 'assets/v56.js' index.html
+          grep -q 'assets/v57.js' index.html
 
       - name: Verify both official domains
         env:
@@ -75,7 +84,7 @@ jobs:
           verify_html() {
             local html="$1"
             grep -Fq "meta name=\"sunshine-version\" content=\"${EXPECTED}\"" <<< "$html" || return 1
-            for asset in v47.js v48.js v49.js v50.js v51.js v52.js v53.js v54.js v55.js v56.js; do
+            for asset in v47.js v48.js v49.js v50.js v51.js v52.js v53.js v54.js v55.js v56.js v57.js; do
               grep -Fq "$asset" <<< "$html" || return 1
             done
           }
