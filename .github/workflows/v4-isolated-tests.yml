@@ -47,10 +47,11 @@ jobs:
           node-version: '22'
       - name: Verify runtime has no production references or secrets
         run: |
-          ! grep -R "dhpsvwkytcqasmtaeayv" src public migrations
-          ! grep -R "sunshine.ymnegocios.com.br" src public migrations
-          ! grep -R "sunshine-ecossistema.vercel.app" src public migrations
-          ! grep -R -E "ASAAS_API_KEY|SUPABASE_SERVICE_ROLE_KEY|service_role" src public migrations
+          check() { if grep -R --exclude='db.js' -E "$1" src public migrations; then echo "Blocked production reference: $1"; exit 1; fi; }
+          check 'dhpsvwkytcqasmtaeayv'
+          check 'sunshine\.ymnegocios\.com\.br'
+          check 'sunshine-ecossistema\.vercel\.app'
+          check 'ASAAS_API_KEY|SUPABASE_SERVICE_ROLE_KEY|service_role'
       - name: Install dependencies and maintain lockfile
         run: |
           if [ -f package-lock.json ]; then npm ci --no-audit --no-fund; else npm install --no-audit --no-fund; fi

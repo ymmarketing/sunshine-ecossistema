@@ -1,18 +1,21 @@
 import { withActor, ownerTransaction } from './db.js'
 
 function camelKey(key) { return key.replace(/_([a-z])/g, (_, c) => c.toUpperCase()) }
-function mapRow(row) { return Object.fromEntries(Object.entries(row).map(([k, v]) => [camelKey(k), typeof v === 'bigint' ? Number(v) : v])) }
+function numericField(key) { return /(?:_cents|_count|basis_points|version|execution_ms)$/.test(key) }
+function mapRow(row) {
+  return Object.fromEntries(Object.entries(row).map(([k, v]) => {
+    const value = numericField(k) && v != null ? Number(v) : v
+    return [camelKey(k), value]
+  }))
+}
 function mapRows(rows) { return rows.map(mapRow) }
-function int(value) { return value == null ? 0 : Number(value) }
 
 export class PostgresRepository {
   constructor(pool) { this.pool = pool }
 
   async health() {
-    const [db, ledger] = await Promise.all([
-      this.pool.query("select current_database() database, current_setting('server_version') server_version"),
-      this.pool.query("select migration_name,checksum_sha256,applied_at,execution_ms,git_sha from sunshine_v4._migration_ledger order by migration_name")
-    ])
+    const db = await this.pool.query("select current_database() database, current_setting('server_version') server_version")
+    const ledger = await this.pool.query("select migration_name,checksum_sha256,applied_at,execution_ms,git_sha from sunshine_v4._migration_ledger order by migration_name")
     return { database: db.rows[0].database, serverVersion: db.rows[0].server_version, migrations: mapRows(ledger.rows) }
   }
 
@@ -39,47 +42,43 @@ export class PostgresRepository {
 
   async state(userId) {
     return withActor(this.pool, userId, async client => {
-      const [people, contracts, items, obligations, payments, allocations, promises, collections, commissions] = await Promise.all([
-        client.query('select id,full_name,preferred_name,phone,email,created_at from sunshine_v4.people order by created_at,id'),
-        client.query(`select c.*, coalesce(x.item_count,0)::int item_count, coalesce(x.total_cents,0)::bigint total_cents
-          from sunshine_v4.contracts c left join lateral (
-            select count(*) item_count, sum(amount_cents) total_cents from sunshine_v4.contract_items i where i.contract_id=c.id
-          ) x on true order by c.created_at,c.id`),
-        client.query('select * from sunshine_v4.contract_items order by created_at,id'),
-        client.query(`select o.id,o.contract_item_id,o.beneficiary_person_id,o.total_cents,o.due_date,o.expected_payment_date,o.next_collection_date,o.explicit_status,o.created_at,
-          r.received_cents,r.signed_balance_cents,r.is_overallocated,r.overallocated_cents,r.liquidation_status,r.due_status,
-          i.service_code,i.service_name
-          from sunshine_v4.obligations o
-          join sunshine_v4.receivables r on r.obligation_id=o.id
-          join sunshine_v4.contract_items i on i.id=o.contract_item_id
-          order by o.created_at,o.id`),
-        client.query(`select p.*, r.allocated_cents,r.signed_unallocated_cents,r.is_overallocated,r.overallocated_cents
-          from sunshine_v4.payments p join sunshine_v4.payment_reconciliation r on r.payment_id=p.id
-          order by p.paid_at desc,p.id`),
-        client.query('select * from sunshine_v4.payment_allocations order by allocated_at,id'),
-        client.query('select * from sunshine_v4.payment_promises order by created_at,id'),
-        client.query('select * from sunshine_v4.collection_tasks order by scheduled_for,created_at,id'),
-        client.query('select * from sunshine_v4.commission_entries order by created_at,id')
-      ])
+      const people = await client.query('select id,full_name,preferred_name,phone,email,created_at from sunshine_v4.people order by created_at,id')
+      const contracts = await client.query(`select c.*, coalesce(x.item_count,0)::int item_count, coalesce(x.total_cents,0)::bigint total_cents
+        from sunshine_v4.contracts c left join lateral (
+          select count(*) item_count, sum(amount_cents) total_cents from sunshine_v4.contract_items i where i.contract_id=c.id
+        ) x on true order by c.created_at,c.id`)
+      const items = await client.query('select * from sunshine_v4.contract_items order by created_at,id')
+      const obligations = await client.query(`select o.id,o.contract_item_id,o.beneficiary_person_id,o.total_cents,o.due_date,o.expected_payment_date,o.next_collection_date,o.explicit_status,o.created_at,
+        r.received_cents,r.signed_balance_cents,r.is_overallocated,r.overallocated_cents,r.liquidation_status,r.due_status,
+        i.service_code,i.service_name
+        from sunshine_v4.obligations o
+        join sunshine_v4.receivables r on r.obligation_id=o.id
+        join sunshine_v4.contract_items i on i.id=o.contract_item_id
+        order by o.created_at,o.id`)
+      const payments = await client.query(`select p.*, r.allocated_cents,r.signed_unallocated_cents,r.is_overallocated,r.overallocated_cents
+        from sunshine_v4.payments p join sunshine_v4.payment_reconciliation r on r.payment_id=p.id
+        order by p.paid_at desc,p.id`)
+      const allocations = await client.query('select * from sunshine_v4.payment_allocations order by allocated_at,id')
+      const promises = await client.query('select * from sunshine_v4.payment_promises order by created_at,id')
+      const collections = await client.query('select * from sunshine_v4.collection_tasks order by scheduled_for,created_at,id')
+      const commissions = await client.query('select * from sunshine_v4.commission_entries order by created_at,id')
 
-      const openReceivablesCents = obligations.rows.reduce((s, r) => s + Math.max(int(r.signed_balance_cents), 0), 0)
-      const unallocatedPaymentsCents = payments.rows.reduce((s, r) => s + Math.max(int(r.signed_unallocated_cents), 0), 0)
-      const inconsistentObligationsCents = obligations.rows.reduce((s, r) => s + (r.is_overallocated ? int(r.overallocated_cents) : 0), 0)
-      const inconsistentPaymentsCents = payments.rows.reduce((s, r) => s + (r.is_overallocated ? int(r.overallocated_cents) : 0), 0)
-      const overdueCount = obligations.rows.filter(r => r.due_status === 'OVERDUE').length
-      const pendingCollectionTasks = collections.rows.filter(r => r.status === 'SCHEDULED').length
-      const dueCommissionsCents = commissions.rows.filter(r => r.status === 'DUE').reduce((s, r) => s + int(r.amount_cents), 0)
+      const obligationRows = mapRows(obligations.rows)
+      const paymentRows = mapRows(payments.rows)
+      const collectionRows = mapRows(collections.rows)
+      const commissionRows = mapRows(commissions.rows)
+      const openReceivablesCents = obligationRows.reduce((s, r) => s + Math.max(r.signedBalanceCents, 0), 0)
+      const unallocatedPaymentsCents = paymentRows.reduce((s, r) => s + Math.max(r.signedUnallocatedCents, 0), 0)
+      const inconsistentObligationsCents = obligationRows.reduce((s, r) => s + (r.isOverallocated ? r.overallocatedCents : 0), 0)
+      const inconsistentPaymentsCents = paymentRows.reduce((s, r) => s + (r.isOverallocated ? r.overallocatedCents : 0), 0)
+      const overdueCount = obligationRows.filter(r => r.dueStatus === 'OVERDUE').length
+      const pendingCollectionTasks = collectionRows.filter(r => r.status === 'SCHEDULED').length
+      const dueCommissionsCents = commissionRows.filter(r => r.status === 'DUE').reduce((s, r) => s + r.amountCents, 0)
 
       return {
-        people: mapRows(people.rows),
-        contracts: mapRows(contracts.rows),
-        items: mapRows(items.rows),
-        obligations: mapRows(obligations.rows),
-        payments: mapRows(payments.rows),
-        allocations: mapRows(allocations.rows),
-        promises: mapRows(promises.rows),
-        collectionTasks: mapRows(collections.rows),
-        commissionEntries: mapRows(commissions.rows),
+        people: mapRows(people.rows), contracts: mapRows(contracts.rows), items: mapRows(items.rows), obligations: obligationRows,
+        payments: paymentRows, allocations: mapRows(allocations.rows), promises: mapRows(promises.rows), collectionTasks: collectionRows,
+        commissionEntries: commissionRows,
         summary: { openReceivablesCents, unallocatedPaymentsCents, overdueCount, pendingCollectionTasks, dueCommissionsCents, inconsistentObligationsCents, inconsistentPaymentsCents }
       }
     })
@@ -146,9 +145,7 @@ export class PostgresRepository {
 
   async seedRoles(users) {
     return ownerTransaction(this.pool, async client => {
-      for (const user of users) {
-        await client.query('insert into sunshine_v4.user_roles(user_id,role_code) values($1,$2) on conflict(user_id,role_code) do nothing', [user.id, user.role])
-      }
+      for (const user of users) await client.query('insert into sunshine_v4.user_roles(user_id,role_code) values($1,$2) on conflict(user_id,role_code) do nothing', [user.id, user.role])
     })
   }
 }
