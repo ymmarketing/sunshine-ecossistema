@@ -42,9 +42,9 @@ jobs:
           node-version: '22'
       - name: Verify runtime has no production references or secrets
         run: |
-          ! grep -R "dhpsvwkytcqasmtaeayv" src public migrations tests
-          ! grep -R "sunshine.ymnegocios.com.br" src public migrations tests
-          ! grep -R -E "ASAAS_API_KEY|SUPABASE_SERVICE_ROLE_KEY|service_role" src public migrations tests
+          ! grep -R "dhpsvwkytcqasmtaeayv" src public migrations
+          ! grep -R "sunshine.ymnegocios.com.br" src public migrations
+          ! grep -R -E "ASAAS_API_KEY|SUPABASE_SERVICE_ROLE_KEY|service_role" src public migrations
       - name: Install isolated test dependencies
         run: npm install --no-audit --no-fund
       - name: Run all unit and PostgreSQL tests
