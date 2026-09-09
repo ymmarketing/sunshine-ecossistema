@@ -3,7 +3,6 @@
 
 set search_path = sunshine_v4, public;
 
--- Dedicated application role used only in isolated PostgreSQL tests/runtime.
 do $$
 begin
   if not exists (select 1 from pg_roles where rolname = 'v4_app') then
@@ -70,6 +69,7 @@ create or replace function v4_has_permission(p_permission text)
 returns boolean
 language sql
 stable
+security definer
 set search_path = sunshine_v4, pg_temp
 as $$
   select exists (
@@ -85,6 +85,7 @@ create or replace function v4_assert_permission(p_permission text)
 returns void
 language plpgsql
 stable
+security definer
 set search_path = sunshine_v4, pg_temp
 as $$
 begin
@@ -97,6 +98,7 @@ create or replace function v4_actor_role()
 returns text
 language sql
 stable
+security definer
 set search_path = sunshine_v4, pg_temp
 as $$
   select ur.role_code
@@ -105,6 +107,11 @@ as $$
    order by case ur.role_code when 'ADMIN' then 1 when 'FINANCE' then 2 when 'OPERATOR' then 3 else 4 end
    limit 1;
 $$;
+
+revoke all on function v4_has_permission(text) from public;
+revoke all on function v4_assert_permission(text) from public;
+revoke all on function v4_actor_role() from public;
+grant execute on function v4_has_permission(text), v4_assert_permission(text), v4_actor_role() to v4_app;
 
 create or replace function v4_prevent_audit_mutation()
 returns trigger
@@ -144,7 +151,6 @@ end $$;
 revoke all on function v4_write_audit(text,text,uuid,jsonb) from public;
 grant execute on function v4_write_audit(text,text,uuid,jsonb) to v4_app;
 
--- RLS is enabled even though writes occur through permission-checking SECURITY DEFINER functions.
 alter table people enable row level security;
 alter table contracts enable row level security;
 alter table contract_items enable row level security;
@@ -172,6 +178,5 @@ create policy audit_read on audit_events for select to v4_app using (v4_has_perm
 grant select on people, contracts, contract_items, obligations, payments, payment_allocations,
   payment_promises, collection_tasks, commission_rules, commission_entries, audit_events to v4_app;
 
--- No direct DML grants to application role. Mutations must use canonical transactional functions.
 revoke insert, update, delete on people, contracts, contract_items, obligations, payments,
   payment_allocations, payment_promises, collection_tasks, commission_rules, commission_entries, audit_events from v4_app;
