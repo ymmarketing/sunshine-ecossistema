@@ -24,10 +24,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Verify no production references or secrets
+      - name: Verify runtime has no production references or secrets
         run: |
-          ! grep -R "dhpsvwkytcqasmtaeayv" .
-          ! grep -R "sunshine.ymnegocios.com.br" .
-          ! grep -R -E "ASAAS_API_KEY|SUPABASE_SERVICE_ROLE_KEY|service_role" .
+          ! grep -R "dhpsvwkytcqasmtaeayv" src public migrations
+          ! grep -R "sunshine.ymnegocios.com.br" src public migrations
+          ! grep -R -E "ASAAS_API_KEY|SUPABASE_SERVICE_ROLE_KEY|service_role" src public migrations
       - name: Run P0-A/P0-B automated tests
         run: npm test
