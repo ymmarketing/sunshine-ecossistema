@@ -15,10 +15,26 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: isolated_test_only
+          POSTGRES_DB: sunshine_v4_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d sunshine_v4_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     defaults:
       run:
         working-directory: v4
+    env:
+      TEST_DATABASE_URL: postgresql://postgres:isolated_test_only@127.0.0.1:5432/sunshine_v4_test
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -26,8 +42,10 @@ jobs:
           node-version: '22'
       - name: Verify runtime has no production references or secrets
         run: |
-          ! grep -R "dhpsvwkytcqasmtaeayv" src public migrations
-          ! grep -R "sunshine.ymnegocios.com.br" src public migrations
-          ! grep -R -E "ASAAS_API_KEY|SUPABASE_SERVICE_ROLE_KEY|service_role" src public migrations
-      - name: Run P0-A/P0-B automated tests
+          ! grep -R "dhpsvwkytcqasmtaeayv" src public migrations tests
+          ! grep -R "sunshine.ymnegocios.com.br" src public migrations tests
+          ! grep -R -E "ASAAS_API_KEY|SUPABASE_SERVICE_ROLE_KEY|service_role" src public migrations tests
+      - name: Install isolated test dependencies
+        run: npm install --no-audit --no-fund
+      - name: Run all unit and PostgreSQL tests
         run: npm test
