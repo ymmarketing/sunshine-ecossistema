@@ -69,3 +69,5 @@ jobs:
         run: npx playwright install --with-deps chromium
       - name: Run all unit, PostgreSQL, API, authorization and UI tests
         run: npm test
+      - name: Validate representative fictitious dataset and reconciliation
+        run: node src/validate-seed.js
