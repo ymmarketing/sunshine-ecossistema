@@ -1,4 +1,4 @@
-name: Sunshine V4 isolated tests
+name: Sunshine V4 isolated persistent tests
 
 on:
   push:
@@ -10,12 +10,12 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   test:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     services:
       postgres:
         image: postgres:17-alpine
@@ -35,8 +35,13 @@ jobs:
         working-directory: v4
     env:
       TEST_DATABASE_URL: postgresql://postgres:isolated_test_only@127.0.0.1:5432/sunshine_v4_test
+      V4_ENVIRONMENT: ci
+      V4_ISOLATED_DEMO: '1'
+      V4_DEMO_AUTH_SECRET: ci-only-secret-123456789
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -44,8 +49,22 @@ jobs:
         run: |
           ! grep -R "dhpsvwkytcqasmtaeayv" src public migrations
           ! grep -R "sunshine.ymnegocios.com.br" src public migrations
+          ! grep -R "sunshine-ecossistema.vercel.app" src public migrations
           ! grep -R -E "ASAAS_API_KEY|SUPABASE_SERVICE_ROLE_KEY|service_role" src public migrations
-      - name: Install isolated test dependencies
-        run: npm install --no-audit --no-fund
-      - name: Run all unit and PostgreSQL tests
+      - name: Install dependencies and maintain lockfile
+        run: |
+          if [ -f package-lock.json ]; then npm ci --no-audit --no-fund; else npm install --no-audit --no-fund; fi
+      - name: Version generated package-lock when needed
+        if: github.actor != 'github-actions[bot]'
+        run: |
+          if ! git diff --quiet -- package-lock.json || [ ! -f package-lock.json ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add package-lock.json
+            git commit -m "v4: versionar package-lock isolado"
+            git push origin HEAD:v4-isolated-foundation
+          fi
+      - name: Install Chromium for isolated UI tests
+        run: npx playwright install --with-deps chromium
+      - name: Run all unit, PostgreSQL, API, authorization and UI tests
         run: npm test

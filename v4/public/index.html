@@ -1,113 +1,157 @@
 <!doctype html>
 <html lang="pt-BR">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Sunshine V4 — Slice P0 isolado</title>
-  <style>
-    *{box-sizing:border-box}body{font-family:system-ui,sans-serif;margin:0;background:#f6f6f4;color:#171717}.wrap{max-width:1050px;margin:auto;padding:20px}.banner{background:#fff4c2;border:1px solid #e5c85c;padding:12px 14px;border-radius:12px;margin-bottom:16px;font-weight:700}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px}.card{background:white;border:1px solid #ddd;border-radius:14px;padding:14px}h1{font-size:22px}h2{font-size:17px;margin-top:0}label{display:block;font-size:12px;font-weight:700;margin-top:8px}input,select,button{width:100%;padding:10px;border:1px solid #bbb;border-radius:9px;margin-top:4px;background:white}button{background:#171717;color:white;border:0;font-weight:700;cursor:pointer}.secondary{background:#fff;color:#171717;border:1px solid #bbb}.metrics{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}.metric{background:#f7f7f7;padding:10px;border-radius:10px}.metric b{display:block;font-size:18px}pre{white-space:pre-wrap;font-size:11px;background:#111;color:#eee;padding:10px;border-radius:10px;max-height:340px;overflow:auto}.small{font-size:12px;color:#666}
-  </style>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="robots" content="noindex,nofollow,noarchive">
+  <title>Sunshine V4 — Homologação isolada</title>
+  <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
-<div class="wrap">
-  <div class="banner">AMBIENTE DEMO ISOLADO — memória local do processo Node. Não usa Supabase, Asaas, Reportei ou dados reais.</div>
-  <h1>Sunshine V4 — primeiro vertical slice P0-A/P0-B</h1>
-  <p class="small">Pessoa → contratação → item → obrigação → pagamento → alocação → saldo → promessa/cobrança → comissão versionada → Home/Auditoria.</p>
+  <header class="topbar">
+    <div>
+      <p class="eyebrow">SUNSHINE V4</p>
+      <h1>Homologação isolada</h1>
+    </div>
+    <button id="logoutBtn" class="ghost hidden" type="button">Sair</button>
+  </header>
 
-  <div class="grid">
-    <section class="card">
-      <h2>1. Pessoas</h2>
-      <form id="personForm"><label>Nome</label><input name="fullName" required placeholder="Ex.: Maria Demo" /><button>Cadastrar pessoa</button></form>
+  <main class="shell">
+    <section class="notice">
+      <strong>Ambiente fictício.</strong> Nenhum dado real, Asaas, Reportei, Drive ou banco da V3 está conectado.
     </section>
 
-    <section class="card">
-      <h2>2. Contratação + obrigação</h2>
-      <form id="contractForm">
-        <label>Contratante</label><select name="customerPersonId" class="people"></select>
-        <label>Beneficiário</label><select name="beneficiaryPersonId" class="people"></select>
-        <label>Serviço</label><input name="serviceName" value="Trabalho particular DEMO" />
-        <label>Valor combinado (R$)</label><input name="amount" type="number" step="0.01" value="600" />
-        <label>Vencimento</label><input name="dueDate" type="date" />
-        <button>Criar contratação</button>
+    <section id="loginView" class="panel auth-panel">
+      <h2>Acesso de teste</h2>
+      <p class="muted">Escolha um perfil para validar as permissões da V4.</p>
+      <form id="loginForm" class="stack">
+        <label>Usuário
+          <select name="username" id="loginUser">
+            <option value="admin-demo">admin-demo</option>
+            <option value="finance-demo">finance-demo</option>
+            <option value="operacao-demo">operacao-demo</option>
+            <option value="viewer-demo">viewer-demo</option>
+          </select>
+        </label>
+        <label>Senha
+          <input name="password" id="loginPassword" type="password" value="sunshine-v4-admin" autocomplete="current-password">
+        </label>
+        <button type="submit">Entrar na homologação</button>
       </form>
+      <details>
+        <summary>Credenciais fictícias</summary>
+        <div class="credentials">
+          <code>admin-demo / sunshine-v4-admin</code>
+          <code>finance-demo / sunshine-v4-finance</code>
+          <code>operacao-demo / sunshine-v4-operacao</code>
+          <code>viewer-demo / sunshine-v4-viewer</code>
+        </div>
+      </details>
     </section>
 
-    <section class="card">
-      <h2>3. Pagamento</h2>
-      <form id="paymentForm">
-        <label>Pagador</label><select name="payerPersonId" class="people"></select>
-        <label>Valor recebido (R$)</label><input name="amount" type="number" step="0.01" value="300" />
-        <label>Referência/idempotência</label><input name="externalRef" value="DEMO-PG-001" />
-        <button>Registrar pagamento</button>
-      </form>
+    <section id="appView" class="hidden">
+      <div class="identity-bar panel">
+        <div><span class="muted small">Perfil atual</span><strong id="identityLabel">—</strong></div>
+        <div class="pill" id="roleLabel">—</div>
+      </div>
+
+      <nav class="tabs" aria-label="Áreas da homologação">
+        <button class="tab active" data-tab="home" type="button">Home</button>
+        <button class="tab" data-tab="flow" type="button">Fluxo</button>
+        <button class="tab" data-tab="receivables" type="button">Pendências</button>
+        <button class="tab" data-tab="audit" type="button">Auditoria</button>
+      </nav>
+
+      <section id="tab-home" class="tabpane">
+        <div class="metrics" id="metrics"></div>
+        <section class="panel">
+          <div class="section-head"><div><p class="eyebrow">VISÃO OPERACIONAL</p><h2>Últimos pagamentos</h2></div><button class="ghost" id="refreshBtn" type="button">Atualizar</button></div>
+          <div id="paymentsList" class="list"></div>
+        </section>
+      </section>
+
+      <section id="tab-flow" class="tabpane hidden">
+        <div class="flow-grid">
+          <section class="panel action" data-permission="person.create">
+            <p class="step">1</p><h2>Pessoa</h2>
+            <form id="personForm" class="stack">
+              <label>Nome completo<input name="fullName" required placeholder="Ex.: Pessoa Teste"></label>
+              <label>Telefone<input name="phone" placeholder="Somente fictício"></label>
+              <button>Cadastrar</button>
+            </form>
+          </section>
+
+          <section class="panel action" data-permission="contract.create">
+            <p class="step">2</p><h2>Contratação + obrigação</h2>
+            <form id="contractForm" class="stack">
+              <label>Contratante<select name="customerPersonId" class="peopleSelect"></select></label>
+              <label>Beneficiário<select name="beneficiaryPersonId" class="peopleSelect"></select></label>
+              <label>Serviço<input name="serviceName" value="Trabalho particular DEMO" required></label>
+              <label>Valor combinado (R$)<input name="amount" type="number" min="0.01" step="0.01" value="600" required></label>
+              <label>Vencimento<input name="dueDate" type="date"></label>
+              <button>Criar contratação</button>
+            </form>
+          </section>
+
+          <section class="panel action" data-permission="payment.create">
+            <p class="step">3</p><h2>Pagamento</h2>
+            <form id="paymentForm" class="stack">
+              <label>Pagador<select name="payerPersonId" class="peopleSelect"></select></label>
+              <label>Valor recebido (R$)<input name="amount" type="number" min="0.01" step="0.01" value="300" required></label>
+              <label>Referência fictícia<input name="externalRef" value="DEMO-PG-001" required></label>
+              <button>Registrar pagamento</button>
+            </form>
+          </section>
+
+          <section class="panel action" data-permission="allocation.create">
+            <p class="step">4</p><h2>Alocação</h2>
+            <form id="allocationForm" class="stack">
+              <label>Pagamento<select name="paymentId" id="paymentSelect"></select></label>
+              <label>Obrigação<select name="obligationId" id="obligationSelect"></select></label>
+              <label>Valor desta parte (R$)<input name="amount" type="number" min="0.01" step="0.01" value="300" required></label>
+              <button>Associar</button>
+            </form>
+          </section>
+
+          <section class="panel action" data-permission="promise.create">
+            <p class="step">5</p><h2>Promessa</h2>
+            <form id="promiseForm" class="stack">
+              <label>Obrigação<select name="obligationId" class="obligationSelect"></select></label>
+              <label>Data prometida<input name="promisedFor" type="date" required></label>
+              <label>Próxima cobrança<input name="nextCollectionDate" type="date"></label>
+              <button>Registrar promessa</button>
+            </form>
+          </section>
+
+          <section class="panel action" data-permission="collection.create">
+            <p class="step">6</p><h2>Cobrança</h2>
+            <form id="collectionForm" class="stack">
+              <label>Obrigação<select name="obligationId" class="obligationSelect"></select></label>
+              <label>Data da cobrança<input name="scheduledFor" type="date" required></label>
+              <label>Observação<input name="note" placeholder="Ex.: confirmar pagamento"></label>
+              <button>Criar tarefa</button>
+            </form>
+          </section>
+        </div>
+      </section>
+
+      <section id="tab-receivables" class="tabpane hidden">
+        <section class="panel">
+          <div class="section-head"><div><p class="eyebrow">CONTAS A RECEBER</p><h2>Pendências e saldos</h2></div></div>
+          <div id="receivablesList" class="list"></div>
+        </section>
+      </section>
+
+      <section id="tab-audit" class="tabpane hidden">
+        <section class="panel">
+          <div class="section-head"><div><p class="eyebrow">TRILHA APPEND-ONLY</p><h2>Auditoria</h2></div></div>
+          <div id="auditList" class="list"></div>
+        </section>
+      </section>
     </section>
+  </main>
 
-    <section class="card">
-      <h2>4. Alocação</h2>
-      <form id="allocationForm">
-        <label>Pagamento</label><select name="paymentId" id="payments"></select>
-        <label>Obrigação</label><select name="obligationId" id="obligations"></select>
-        <label>Valor desta parte (R$)</label><input name="amount" type="number" step="0.01" value="300" />
-        <button>Associar</button>
-      </form>
-    </section>
-
-    <section class="card">
-      <h2>5. Promessa / cobrança</h2>
-      <form id="promiseForm">
-        <label>Obrigação</label><select name="obligationId" class="obligations"></select>
-        <label>Data prometida</label><input name="promisedFor" type="date" required />
-        <button>Registrar promessa</button>
-      </form>
-    </section>
-
-    <section class="card">
-      <h2>6. Comissão demo versionada</h2>
-      <form id="ruleForm">
-        <label>Código do serviço</label><input name="serviceCode" value="CUSTOM" />
-        <label>Destinatário demo</label><input name="recipientCode" value="DEMO" />
-        <label>Percentual demo (%)</label><input name="pct" type="number" step="0.01" value="10" />
-        <button>Criar regra</button>
-      </form>
-      <p class="small">A regra é somente para provar o motor; não representa decisão comercial real.</p>
-    </section>
-  </div>
-
-  <section class="card" style="margin-top:12px">
-    <h2>Home operacional</h2>
-    <div class="metrics" id="metrics"></div>
-    <button class="secondary" id="refresh">Atualizar</button>
-    <button class="secondary" id="reset">Limpar demo</button>
-  </section>
-
-  <section class="card" style="margin-top:12px"><h2>Estado do slice</h2><pre id="state"></pre></section>
-</div>
-<script>
-const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)]
-const headers={'content-type':'application/json','x-demo-role':'ADMIN','x-demo-actor':'yasmin-demo'}
-const cents=v=>Math.round(Number(v)*100)
-const brl=c=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format((c||0)/100)
-async function api(path,method='GET',payload){const r=await fetch(path,{method,headers,body:payload?JSON.stringify(payload):undefined});const d=await r.json();if(!r.ok)throw new Error(d.error||'Erro');return d}
-async function refresh(){
-  const s=await api('/api/state')
-  const po=s.people.map(p=>`<option value="${p.id}">${p.fullName}</option>`).join('')
-  $$('.people').forEach(el=>el.innerHTML=po)
-  $('#payments').innerHTML=s.payments.map(p=>`<option value="${p.id}">${brl(p.amountCents)} | disponível ${brl(p.availableCents)}</option>`).join('')
-  const oo=s.obligations.map(o=>`<option value="${o.id}">saldo ${brl(o.balanceCents)} | ${o.liquidationStatus}</option>`).join('')
-  $('#obligations').innerHTML=oo; $$('.obligations').forEach(el=>el.innerHTML=oo)
-  $('#metrics').innerHTML=`<div class="metric"><span>A receber</span><b>${brl(s.summary.openReceivablesCents)}</b></div><div class="metric"><span>Não alocado</span><b>${brl(s.summary.unallocatedPaymentsCents)}</b></div><div class="metric"><span>Vencidos</span><b>${s.summary.overdueCount}</b></div><div class="metric"><span>Comissões demo</span><b>${brl(s.summary.dueCommissionsCents)}</b></div>`
-  $('#state').textContent=JSON.stringify(s,null,2)
-}
-function bind(id,fn){$(id).addEventListener('submit',async e=>{e.preventDefault();try{await fn(new FormData(e.currentTarget));await refresh()}catch(err){alert(err.message)}})}
-bind('#personForm',f=>api('/api/people','POST',{fullName:f.get('fullName')}))
-bind('#contractForm',f=>api('/api/contracts','POST',{customerPersonId:f.get('customerPersonId'),items:[{beneficiaryPersonId:f.get('beneficiaryPersonId'),serviceCode:'CUSTOM',serviceName:f.get('serviceName'),amountCents:cents(f.get('amount')),dueDate:f.get('dueDate')||null}]}))
-bind('#paymentForm',f=>api('/api/payments','POST',{payerPersonId:f.get('payerPersonId'),amountCents:cents(f.get('amount')),externalRef:f.get('externalRef'),source:'MANUAL_DEMO'}))
-bind('#allocationForm',f=>api('/api/allocations','POST',{paymentId:f.get('paymentId'),obligationId:f.get('obligationId'),amountCents:cents(f.get('amount')),idempotencyKey:crypto.randomUUID()}))
-bind('#promiseForm',f=>api('/api/promises','POST',{obligationId:f.get('obligationId'),promisedFor:f.get('promisedFor')}))
-bind('#ruleForm',f=>api('/api/commission-rules','POST',{serviceCode:f.get('serviceCode'),recipientCode:f.get('recipientCode'),basisPoints:Math.round(Number(f.get('pct'))*100)}))
-$('#refresh').onclick=refresh
-$('#reset').onclick=async()=>{await api('/api/reset','POST',{});await refresh()}
-refresh()
-</script>
+  <div id="toast" class="toast hidden" role="status"></div>
+  <script type="module" src="/app.js"></script>
 </body>
 </html>

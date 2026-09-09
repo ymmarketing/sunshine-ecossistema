@@ -1,0 +1,28 @@
+databases:
+  - name: sunshine-v4-homolog-db
+    databaseName: sunshine_v4_homolog
+    user: sunshine_v4_homolog
+
+services:
+  - type: web
+    name: sunshine-v4-homolog
+    runtime: node
+    rootDir: v4
+    buildCommand: npm ci --no-audit --no-fund
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: sunshine-v4-homolog-db
+          property: connectionString
+      - key: V4_ENVIRONMENT
+        value: preview
+      - key: V4_ISOLATED_DEMO
+        value: "1"
+      - key: V4_DEMO_AUTH_SECRET
+        generateValue: true
+      - key: SEED_BUSINESS_DEMO
+        value: "1"
+      - key: NODE_ENV
+        value: production
