@@ -1,0 +1,33 @@
+name: Sunshine V4 isolated tests
+
+on:
+  push:
+    branches:
+      - v4-isolated-foundation
+    paths:
+      - 'v4/**'
+      - '.github/workflows/v4-isolated-tests.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    defaults:
+      run:
+        working-directory: v4
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify no production references or secrets
+        run: |
+          ! grep -R "dhpsvwkytcqasmtaeayv" .
+          ! grep -R "sunshine.ymnegocios.com.br" .
+          ! grep -R -E "ASAAS_API_KEY|SUPABASE_SERVICE_ROLE_KEY|service_role" .
+      - name: Run P0-A/P0-B automated tests
+        run: npm test
