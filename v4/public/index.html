@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Sunshine V4 — Slice P0 isolado</title>
+  <style>
+    *{box-sizing:border-box}body{font-family:system-ui,sans-serif;margin:0;background:#f6f6f4;color:#171717}.wrap{max-width:1050px;margin:auto;padding:20px}.banner{background:#fff4c2;border:1px solid #e5c85c;padding:12px 14px;border-radius:12px;margin-bottom:16px;font-weight:700}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px}.card{background:white;border:1px solid #ddd;border-radius:14px;padding:14px}h1{font-size:22px}h2{font-size:17px;margin-top:0}label{display:block;font-size:12px;font-weight:700;margin-top:8px}input,select,button{width:100%;padding:10px;border:1px solid #bbb;border-radius:9px;margin-top:4px;background:white}button{background:#171717;color:white;border:0;font-weight:700;cursor:pointer}.secondary{background:#fff;color:#171717;border:1px solid #bbb}.metrics{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}.metric{background:#f7f7f7;padding:10px;border-radius:10px}.metric b{display:block;font-size:18px}pre{white-space:pre-wrap;font-size:11px;background:#111;color:#eee;padding:10px;border-radius:10px;max-height:340px;overflow:auto}.small{font-size:12px;color:#666}
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <div class="banner">AMBIENTE DEMO ISOLADO — memória local do processo Node. Não usa Supabase, Asaas, Reportei ou dados reais.</div>
+  <h1>Sunshine V4 — primeiro vertical slice P0-A/P0-B</h1>
+  <p class="small">Pessoa → contratação → item → obrigação → pagamento → alocação → saldo → promessa/cobrança → comissão versionada → Home/Auditoria.</p>
+
+  <div class="grid">
+    <section class="card">
+      <h2>1. Pessoas</h2>
+      <form id="personForm"><label>Nome</label><input name="fullName" required placeholder="Ex.: Maria Demo" /><button>Cadastrar pessoa</button></form>
+    </section>
+
+    <section class="card">
+      <h2>2. Contratação + obrigação</h2>
+      <form id="contractForm">
+        <label>Contratante</label><select name="customerPersonId" class="people"></select>
+        <label>Beneficiário</label><select name="beneficiaryPersonId" class="people"></select>
+        <label>Serviço</label><input name="serviceName" value="Trabalho particular DEMO" />
+        <label>Valor combinado (R$)</label><input name="amount" type="number" step="0.01" value="600" />
+        <label>Vencimento</label><input name="dueDate" type="date" />
+        <button>Criar contratação</button>
+      </form>
+    </section>
+
+    <section class="card">
+      <h2>3. Pagamento</h2>
+      <form id="paymentForm">
+        <label>Pagador</label><select name="payerPersonId" class="people"></select>
+        <label>Valor recebido (R$)</label><input name="amount" type="number" step="0.01" value="300" />
+        <label>Referência/idempotência</label><input name="externalRef" value="DEMO-PG-001" />
+        <button>Registrar pagamento</button>
+      </form>
+    </section>
+
+    <section class="card">
+      <h2>4. Alocação</h2>
+      <form id="allocationForm">
+        <label>Pagamento</label><select name="paymentId" id="payments"></select>
+        <label>Obrigação</label><select name="obligationId" id="obligations"></select>
+        <label>Valor desta parte (R$)</label><input name="amount" type="number" step="0.01" value="300" />
+        <button>Associar</button>
+      </form>
+    </section>
+
+    <section class="card">
+      <h2>5. Promessa / cobrança</h2>
+      <form id="promiseForm">
+        <label>Obrigação</label><select name="obligationId" class="obligations"></select>
+        <label>Data prometida</label><input name="promisedFor" type="date" required />
+        <button>Registrar promessa</button>
+      </form>
+    </section>
+
+    <section class="card">
+      <h2>6. Comissão demo versionada</h2>
+      <form id="ruleForm">
+        <label>Código do serviço</label><input name="serviceCode" value="CUSTOM" />
+        <label>Destinatário demo</label><input name="recipientCode" value="DEMO" />
+        <label>Percentual demo (%)</label><input name="pct" type="number" step="0.01" value="10" />
+        <button>Criar regra</button>
+      </form>
+      <p class="small">A regra é somente para provar o motor; não representa decisão comercial real.</p>
+    </section>
+  </div>
+
+  <section class="card" style="margin-top:12px">
+    <h2>Home operacional</h2>
+    <div class="metrics" id="metrics"></div>
+    <button class="secondary" id="refresh">Atualizar</button>
+    <button class="secondary" id="reset">Limpar demo</button>
+  </section>
+
+  <section class="card" style="margin-top:12px"><h2>Estado do slice</h2><pre id="state"></pre></section>
+</div>
+<script>
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)]
+const headers={'content-type':'application/json','x-demo-role':'ADMIN','x-demo-actor':'yasmin-demo'}
+const cents=v=>Math.round(Number(v)*100)
+const brl=c=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format((c||0)/100)
+async function api(path,method='GET',payload){const r=await fetch(path,{method,headers,body:payload?JSON.stringify(payload):undefined});const d=await r.json();if(!r.ok)throw new Error(d.error||'Erro');return d}
+async function refresh(){
+  const s=await api('/api/state')
+  const po=s.people.map(p=>`<option value="${p.id}">${p.fullName}</option>`).join('')
+  $$('.people').forEach(el=>el.innerHTML=po)
+  $('#payments').innerHTML=s.payments.map(p=>`<option value="${p.id}">${brl(p.amountCents)} | disponível ${brl(p.availableCents)}</option>`).join('')
+  const oo=s.obligations.map(o=>`<option value="${o.id}">saldo ${brl(o.balanceCents)} | ${o.liquidationStatus}</option>`).join('')
+  $('#obligations').innerHTML=oo; $$('.obligations').forEach(el=>el.innerHTML=oo)
+  $('#metrics').innerHTML=`<div class="metric"><span>A receber</span><b>${brl(s.summary.openReceivablesCents)}</b></div><div class="metric"><span>Não alocado</span><b>${brl(s.summary.unallocatedPaymentsCents)}</b></div><div class="metric"><span>Vencidos</span><b>${s.summary.overdueCount}</b></div><div class="metric"><span>Comissões demo</span><b>${brl(s.summary.dueCommissionsCents)}</b></div>`
+  $('#state').textContent=JSON.stringify(s,null,2)
+}
+function bind(id,fn){$(id).addEventListener('submit',async e=>{e.preventDefault();try{await fn(new FormData(e.currentTarget));await refresh()}catch(err){alert(err.message)}})}
+bind('#personForm',f=>api('/api/people','POST',{fullName:f.get('fullName')}))
+bind('#contractForm',f=>api('/api/contracts','POST',{customerPersonId:f.get('customerPersonId'),items:[{beneficiaryPersonId:f.get('beneficiaryPersonId'),serviceCode:'CUSTOM',serviceName:f.get('serviceName'),amountCents:cents(f.get('amount')),dueDate:f.get('dueDate')||null}]}))
+bind('#paymentForm',f=>api('/api/payments','POST',{payerPersonId:f.get('payerPersonId'),amountCents:cents(f.get('amount')),externalRef:f.get('externalRef'),source:'MANUAL_DEMO'}))
+bind('#allocationForm',f=>api('/api/allocations','POST',{paymentId:f.get('paymentId'),obligationId:f.get('obligationId'),amountCents:cents(f.get('amount')),idempotencyKey:crypto.randomUUID()}))
+bind('#promiseForm',f=>api('/api/promises','POST',{obligationId:f.get('obligationId'),promisedFor:f.get('promisedFor')}))
+bind('#ruleForm',f=>api('/api/commission-rules','POST',{serviceCode:f.get('serviceCode'),recipientCode:f.get('recipientCode'),basisPoints:Math.round(Number(f.get('pct'))*100)}))
+$('#refresh').onclick=refresh
+$('#reset').onclick=async()=>{await api('/api/reset','POST',{});await refresh()}
+refresh()
+</script>
+</body>
+</html>
