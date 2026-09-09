@@ -71,3 +71,13 @@ jobs:
         run: npm test
       - name: Validate representative fictitious dataset and reconciliation
         run: node src/validate-seed.js
+      - name: Validate preview smoke contract against isolated PostgreSQL
+        run: |
+          PORT=4174 node src/server.js > /tmp/sunshine-v4-smoke.log 2>&1 &
+          pid=$!
+          trap 'kill $pid 2>/dev/null || true' EXIT
+          for attempt in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:4174/api/health >/dev/null; then break; fi
+            sleep 1
+          done
+          PREVIEW_URL=http://127.0.0.1:4174 npm run smoke:preview
