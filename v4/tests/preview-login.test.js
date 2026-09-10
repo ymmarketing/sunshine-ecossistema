@@ -20,6 +20,13 @@ const commissionsMigration = fs.readFileSync(
   ),
   'utf8',
 );
+const drilldownMigration = fs.readFileSync(
+  path.resolve(
+    here,
+    '../../supabase/migrations/20260910210929_add_v4_drilldown_and_person_history.sql',
+  ),
+  'utf8',
+);
 
 test('preview inline JavaScript parses without syntax errors', () => {
   assert.ok(scripts.length > 0, 'inline app script must exist');
@@ -91,6 +98,56 @@ test('finance identifies open and paid commissions by recipient', () => {
   assert.match(commissionsMigration, /coalesce\(b\.full_name,r\.full_name,'Sem identificação'\)/);
   assert.match(commissionsMigration, /upper\(coalesce\(c\.status,''\)\)='DUE'/);
   assert.match(commissionsMigration, /upper\(coalesce\(c\.status,''\)\)='PAID'/);
+});
+
+test('works shows active first, preserves history and offers an explicit filter', () => {
+  assert.match(html, /id="workFilter"/);
+  assert.match(html, /Todos — ativo primeiro/);
+  assert.match(html, /rpc\('v4_works',\{p_include_done:true\}\)/);
+  assert.match(html, /function sortWorks/);
+  assert.match(html, /function workTime/);
+  assert.match(html, /details\[data-work-id\] summary/);
+  assert.match(html, /rpc\('v4_work_detail'/);
+  assert.match(drilldownMigration, /create or replace function public\.v4_work_detail/);
+  assert.match(drilldownMigration, /v4_assert_permission\('work\.read'\)/);
+});
+
+test('person expansion includes profile facts and a recent-first history', () => {
+  assert.match(html, /rpc\('v4_person_detail'/);
+  assert.match(html, /DATA DE NASCIMENTO/);
+  assert.match(html, /TRABALHOS REALIZADOS/);
+  assert.match(html, /FILHA DA CASA/);
+  assert.match(html, /HISTÓRICO — MAIS RECENTE PRIMEIRO/);
+  assert.match(drilldownMigration, /create or replace function public\.v4_person_detail/);
+  assert.match(drilldownMigration, /v4_assert_permission\('person\.read'\)/);
+  assert.match(drilldownMigration, /order by occurred_at desc nulls last/);
+});
+
+test('finance layout separates source detail from equal commission cards', () => {
+  const sourceDetail = html.indexOf("detailCard('DETALHAMENTO POR ORIGEM'");
+  const commissions = html.indexOf("commissionCards(f.dueCommissionsByPerson");
+  assert.ok(sourceDetail >= 0 && commissions > sourceDetail);
+  assert.match(html, /id="financeEvidence"/);
+  assert.match(html, /data-finance-detail/);
+  assert.match(html, /Pagamentos que formam o saldo do período/);
+  assert.match(html, /rpc\('v4_commission_details'/);
+  assert.match(drilldownMigration, /create or replace function public\.v4_commission_details/);
+  assert.match(drilldownMigration, /v4_assert_permission\('commission\.read'\)/);
+});
+
+test('new drill-down RPCs are restricted to authenticated roles', () => {
+  for (const signature of [
+    'public.v4_person_detail(uuid)',
+    'public.v4_commission_details(text,integer)',
+    'public.v4_work_detail(uuid)',
+  ]) {
+    assert.ok(drilldownMigration.includes(`revoke all on function ${signature} from public, anon`));
+    assert.ok(
+      drilldownMigration.includes(
+        `grant execute on function ${signature} to authenticated, service_role`,
+      ),
+    );
+  }
 });
 
 test('receivables resolves contract item through its obligation', () => {
