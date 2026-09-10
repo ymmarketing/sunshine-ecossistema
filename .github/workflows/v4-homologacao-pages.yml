@@ -1,0 +1,44 @@
+name: Sunshine V4 homologacao navegacao
+
+on:
+  push:
+    branches:
+      - v4-homologacao-navegacao
+    paths:
+      - 'homologacao-v4/**'
+      - '.github/workflows/v4-homologacao-pages.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: sunshine-v4-homologacao-pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout homologacao isolada
+        uses: actions/checkout@v4
+      - name: Guard de isolamento
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f homologacao-v4/index.html
+          ! grep -R -E 'dhpsvwkytcqasmtaeayv|sunshine\.ymnegocios\.com\.br|sunshine-ecossistema\.vercel\.app|ASAAS_API_KEY|SUPABASE_SERVICE_ROLE_KEY|service_role|fetch\(|XMLHttpRequest|WebSocket' homologacao-v4
+      - name: Configurar GitHub Pages
+        uses: actions/configure-pages@v5
+      - name: Empacotar homologacao
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: homologacao-v4
+      - name: Publicar homologacao
+        id: deployment
+        uses: actions/deploy-pages@v4
