@@ -32,6 +32,10 @@ test('secondary bootstrap failures keep the authenticated application open', () 
   assert.match(html, /operationalError/);
 });
 
+test('hidden login cannot be overridden by the login display rule', () => {
+  assert.match(html, /\.hidden\s*\{\s*display\s*:\s*none\s*!important\s*\}/);
+});
+
 test('receivables resolves contract item through its obligation', () => {
   assert.match(
     receivablesMigration,
