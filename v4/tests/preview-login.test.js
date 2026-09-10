@@ -13,6 +13,13 @@ const receivablesMigrationPath = path.resolve(
   '../../supabase/migrations/20260910182531_fix_v4_receivables_obligation_join.sql',
 );
 const receivablesMigration = fs.readFileSync(receivablesMigrationPath, 'utf8');
+const commissionsMigration = fs.readFileSync(
+  path.resolve(
+    here,
+    '../../supabase/migrations/20260910204859_add_v4_finance_commissions_by_person.sql',
+  ),
+  'utf8',
+);
 
 test('preview inline JavaScript parses without syntax errors', () => {
   assert.ok(scripts.length > 0, 'inline app script must exist');
@@ -62,6 +69,28 @@ test('finance filter keeps the approved labels', () => {
   assert.match(html, /Data de início/);
   assert.match(html, /Data final/);
   assert.match(html, /Considerar data de/);
+});
+
+test('Home keeps the four V3 quick-access actions', () => {
+  assert.match(html, /data-quick="new-client"[^>]*><b>Novo cliente/);
+  assert.match(html, /data-quick="new-appointment"[^>]*><b>Agendar consulta/);
+  assert.match(html, /data-quick="new-work"[^>]*><b>Novo trabalho/);
+  assert.match(html, /data-quick="new-payment"[^>]*><b>Lançar pagamento/);
+});
+
+test('payment association and manual entry remain visible with zero pending items', () => {
+  assert.match(html, /id="pendingPanel" class="panel"/);
+  assert.match(html, /\+ Lançamento manual/);
+  assert.match(html, /Nenhum pagamento aguardando associação neste período/);
+  assert.doesNotMatch(html, /pendingPanel'\)\.classList\.toggle\('hidden'/);
+});
+
+test('finance identifies open and paid commissions by recipient', () => {
+  assert.match(html, /dueCommissionsByPerson/);
+  assert.match(html, /paidCommissionsByPerson/);
+  assert.match(commissionsMigration, /coalesce\(b\.full_name,r\.full_name,'Sem identificação'\)/);
+  assert.match(commissionsMigration, /upper\(coalesce\(c\.status,''\)\)='DUE'/);
+  assert.match(commissionsMigration, /upper\(coalesce\(c\.status,''\)\)='PAID'/);
 });
 
 test('receivables resolves contract item through its obligation', () => {
