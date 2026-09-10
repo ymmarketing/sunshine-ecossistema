@@ -36,6 +36,34 @@ test('hidden login cannot be overridden by the login display rule', () => {
   assert.match(html, /\.hidden\s*\{\s*display\s*:\s*none\s*!important\s*\}/);
 });
 
+test('production preview preserves the approved UX v3 structure', () => {
+  assert.match(html, /Homologação UX — fluxo real/);
+  assert.match(html, /class="bottom"/);
+  assert.match(html, />Home<\/button>/);
+  assert.match(html, />Pessoas<\/button>/);
+  assert.match(html, />Agenda<\/button>/);
+  assert.match(html, />Financeiro<\/button>/);
+  assert.match(html, />Menu<\/button>/);
+  assert.match(html, /Todas as áreas/);
+});
+
+test('manual entry keeps the approved three-step operational order', () => {
+  const receipt = html.indexOf('<strong>Recebimento</strong>');
+  const coverage = html.indexOf('<strong>O que este pagamento cobre?</strong>');
+  const payment = html.indexOf('<strong>Situação do pagamento</strong>');
+  assert.ok(receipt >= 0 && coverage > receipt && payment > coverage);
+  assert.match(html, /Nome completo de quem pagou/);
+  assert.match(html, /É para quantas pessoas\?/);
+  assert.match(html, /Nome completo do beneficiário/);
+  assert.match(html, /Resumo antes de salvar/);
+});
+
+test('finance filter keeps the approved labels', () => {
+  assert.match(html, /Data de início/);
+  assert.match(html, /Data final/);
+  assert.match(html, /Considerar data de/);
+});
+
 test('receivables resolves contract item through its obligation', () => {
   assert.match(
     receivablesMigration,
