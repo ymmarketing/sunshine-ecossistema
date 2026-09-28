@@ -140,7 +140,7 @@ begin
     limit 1;
 
     if v_payment_id is null then
-      if v_entry.classification_status<>'PENDING' then
+      if coalesce(v_entry.classification_status,'')<>'PENDING' then
         raise exception 'Este recebimento do Asaas já foi tratado.';
       end if;
 
