@@ -1,0 +1,27 @@
+name: One-off Sunshine production deploy
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  deploy:
+    if: startsWith(github.head_ref, 'deploy/sunshine-production-')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      VERCEL_ORG_ID: team_ywpsPgjP5sNcot2jEMPE8Fvu
+      VERCEL_PROJECT_ID: prj_mrlvyzG6f1FHM7ohYlIJuqJxavVg
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check Vercel token
+        shell: bash
+        run: |
+          test -n "$VERCEL_TOKEN" || (echo "VERCEL_TOKEN secret is missing" && exit 1)
+      - name: Pull Vercel production settings
+        run: npx --yes vercel@latest pull --yes --environment=production --token="$VERCEL_TOKEN"
+      - name: Build
+        run: npx --yes vercel@latest build --prod --token="$VERCEL_TOKEN"
+      - name: Deploy production
+        run: npx --yes vercel@latest deploy --prebuilt --prod --token="$VERCEL_TOKEN"
