@@ -19,15 +19,17 @@ Solicitação: PDF “MELHORIAS E CORREÇÕES SUNSHINE”, complementado pela va
 | Pró-labore | Botão cria previsões mensais de R$ 1.620 para Yasmin e Lourdes, a partir de outubro | Criar previsão não registra pagamento; repetir o botão não duplica a previsão |
 | Editar / excluir lançamentos | Editar beneficiário, trabalho, serviço, total, referência e responsável; corrigir recebimento manual; remover associação; exclusão com justificativa, auditoria e restauração | Histórico e comprovantes preservados; comissão paga protegida de alterações na divisão |
 | Pessoas e aniversários | Busca por nome/telefone/e-mail e filtros de crédito/pagamento pendente no topo; aniversários recolhidos, por mês e com cópia apenas dos selecionados | Filtros sempre visíveis e nenhum disparo automático |
+| Detalhe de Pessoas | Cabeçalho vinho, crédito em verde, pendência em âmbar; nome/data do trabalho e valores contratado/recebido; cadastro e histórico recolhíveis; histórico por mês e tipo, com situação em português | Leitura por blocos e regularização identificada pelo trabalho; divergência entre cadastro concluído e falta de recebimento sinalizada |
 | Listas extensas | Seta para recolher/expandir pagamentos, pessoas, trabalhos, perguntas, mensalidades, saldos, cobrança, custos, tabela de metas mensais, ranking e exclusões | Começam recolhidas; busca/filtros de Pessoas, trabalhos e perguntas expandem seus resultados |
 | Atualizar pelo celular | Integração GitHub–Vercel já conectada; testes de interface no GitHub; verificação dos arquivos publicados após implantação | Alteração revisada entra em `main`, Vercel publica automaticamente e a verificação confere a versão |
 
 ## O que já foi verificado
 
 - Sintaxe do JavaScript da aplicação e do novo módulo.
-- Sete testes de interface: navegação/cabeçalho e campo demográfico opcional; queda de conexão e confirmação dos vínculos; correção após erro definitivo; rateio de três trabalhos; aniversários sem envio; destinos obrigatórios e pesquisa por pessoa; listas recolhíveis com busca por nome/telefone e filtro de pendência preservados.
+- Nove testes de interface: navegação/cabeçalho e campo demográfico opcional; queda de conexão e confirmação dos vínculos; correção após erro definitivo; rateio de três trabalhos; aniversários sem envio; destinos obrigatórios e pesquisa por pessoa; listas recolhíveis com busca por nome/telefone e filtro de pendência preservados; identificação do trabalho na pendência e na regularização; histórico por mês, situação de recebimento excluído e proteção contra conteúdo HTML.
 - Testes reais das funções do banco, em transação revertida: custos, metas, aniversário em ano não bissexto, quatro modalidades de associação e repetição, mensalidades com referências distintas, comissão antiga e nova, virada em 01/10 às 00:00 de São Paulo, divisão individual, exclusão/restauração, proteção de comissão paga, repasse e deduplicação Asaas, rascunho contábil sem enviar e-mail.
 - Teste adicional dos destinos reais: trabalho concluído, trabalho particular por pessoa e Agrado Coletivo; rateio misto, edição/repetição e rejeição de destinos vazios, repetidos, inválidos ou múltiplos na mesma linha.
+- Comparação das posições financeiras de todas as pessoas antes/depois: saldo, crédito, recebimentos e pendências mantidos. Teste de metadados confirmou trabalho/data, obrigação original, situação cadastrada e bloqueio de leitura sem autenticação.
 - Impressões digitais dos pagamentos, associações e comissões existentes mantidas após os testes. Nenhuma pessoa de teste ficou gravada.
 - Funções financeiras novas bloqueadas para acesso anônimo; credencial Resend acessível somente pelo servidor; tabelas novas sem acesso direto pelo cliente.
 - Função de envio contábil publicada no Supabase com autenticação obrigatória.
@@ -81,6 +83,16 @@ Use inicialmente a implantação de teste. Ela usa o mesmo banco da Sunshine: cr
 - [ ] Buscar uma pessoa pelo nome e depois pelo telefone: os resultados se expandem e mostram os registros esperados.
 - [ ] Escolher **Com pagamento pendente** e **Com crédito**: conferir os filtros e preservar a busca digitada.
 - [ ] Abrir aniversariantes pela seta e recolher novamente: a busca e os filtros continuam visíveis.
+
+### Leitura do detalhe da pessoa
+
+- [ ] Abrir a pessoa do primeiro print: conferir **Sete Saias — 10/09/2026** na pendência exibida de R$ 70, com total contratado e recebido associado separados.
+- [ ] Conferir o aviso quando o cadastro estiver marcado concluído, mas ainda existir saldo sem pagamento associado. Esse aviso não altera nem exclui o registro.
+- [ ] Clicar em **Regularizar pagamento** e conferir pessoa, trabalho e data na janela; fechar sem confirmar se estiver apenas validando a identificação.
+- [ ] Abrir uma pessoa com histórico longo: conferir cabeçalho vinho, crédito em verde e pendência em âmbar, com texto e valor identificando cada situação.
+- [ ] Conferir cadastro/contato e histórico inicialmente recolhidos; abrir cada bloco pela seta.
+- [ ] No histórico, conferir meses, ordem recente primeiro e tipos **participação em trabalho**, **serviço contratado**, **recebimento** e **atendimento**. Trabalho concluído não equivale a recebimento confirmado.
+- [ ] Abrir/fechar pessoas diferentes e confirmar que os dados de uma não aparecem na outra; manter busca por nome/telefone e filtros de crédito/pendência.
 
 ### Faturamento e metas
 

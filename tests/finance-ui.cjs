@@ -11,7 +11,7 @@ function boot(handler=async()=>null) {
   w.supabase={createClient:()=>({auth:{getSession:async()=>({data:{session:null}}),signOut:async()=>{}},rpc:async(name,args)=>{calls.push({name,args});try{return {data:await handler(name,args),error:null}}catch(error){return {data:null,error}}}})};
   w.eval(fs.readFileSync(path.join(root,'assets/finance-operations.js'),'utf8'));
   const inline=[...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(x=>x[1]).join('\n');
-  w.eval(inline.replace('\ninit();','\nwindow.__testing={get operations(){return operations},state:state,openEntry:openEntry};init();'));
+  w.eval(inline.replace('\ninit();','\nwindow.__testing={get operations(){return operations},state:state,openEntry:openEntry,loadPeople:loadPeople,loadPersonDetail:loadPersonDetail,renderPersonDetail:renderPersonDetail,openDebtRegularization:openDebtRegularization};init();'));
   return {w,dom,calls,api:w.__testing,close:()=>w.close()};
 }
 test('new modules mount, navigation and brand return to Home, sex is optional',()=>{
@@ -116,5 +116,33 @@ test('long lists and birthdays start collapsed; people search and debt filters r
     }
     e('peopleBalanceFilter').value='DEBT';e('peopleBalanceFilter').dispatchEvent(new w.Event('change',{bubbles:true}));
     await new Promise(r=>setTimeout(r,0));assert.equal(app.calls.filter(x=>x.name==='v4_people_with_balances').at(-1).args.p_balance_filter,'DEBT');
+  }finally{app.close();}
+});
+
+test('person debts identify the work and date and keep regularization attached to the original obligation',async()=>{
+  const person={id:'person-ux',fullName:'Pessoa Exemplo',phone:'551199998888',birthDate:'1990-01-01'},debt={obligationId:'obligation-ux',serviceName:'Agrado Coletivo 2026',serviceCategory:'AGRADO_COLETIVO',workTitle:'Sete Saias',workDate:'2026-09-10T15:00:00Z',totalCents:7000,receivedCents:0,pendingCents:7000,explicitStatus:'SETTLED'};
+  const history=Array.from({length:30},(_,i)=>({event_type:i%2?'WORK':'PAYMENT',title:i%2?'Sete Saias':'Pagamento recebido',status:i%2?'DONE':'PAID',detail:i%2?'DONE':'PIX',occurred_at:i<15?'2026-09-10T12:00:00Z':'2026-08-10T12:00:00Z',amount_cents:7000}));
+  const app=boot(async(name)=>{
+    if(name==='v4_people_with_balances')return [{id:person.id,full_name:person.fullName,debt_cents:7000}];
+    if(name==='v4_person_record')return person;
+    if(name==='v4_person_detail')return {person,history,workCount:1};
+    if(name==='v4_person_financial_position')return {creditCents:0,debtCents:7000,debtEvidence:[debt]};
+    return [];
+  });
+  try{
+    await app.api.loadPeople();const card=app.w.document.querySelector('.personCard');card.open=true;await app.api.loadPersonDetail(card);
+    const pending=card.querySelector('.personDebtRow');assert.equal(pending.querySelector('strong').textContent,'Sete Saias');assert(pending.textContent.includes('10/09/2026'));assert(pending.textContent.includes('Agrado Coletivo 2026'));assert(pending.textContent.includes('Total contratado'));assert(pending.textContent.includes('Recebido associado'));assert(pending.querySelector('.personAlert').textContent.includes('Cadastro marcado como concluído'));
+    assert.equal(card.querySelector('.personHistorySection').open,false);assert.equal(card.querySelector('.personProfileSection').open,false);assert(card.querySelector('.personBalance.personDebt'));
+    card.querySelector('.personHistorySection summary').click();assert.equal(card.querySelector('.personHistorySection').open,true);assert.equal(card.querySelectorAll('.personHistoryRow').length,30);assert.equal(card.querySelectorAll('.historyMonth').length,2);assert(card.querySelector('.personHistory').textContent.includes('Trabalho concluído'));assert(card.querySelector('.personHistory').textContent.includes('Recebimento confirmado'));
+    await app.api.openDebtRegularization(pending.querySelector('.regularizeDebt'));
+    const form=app.w.document.getElementById('regularizationForm');assert.equal(form.dataset.obligationId,debt.obligationId);assert.equal(form.dataset.personId,person.id);assert(form.textContent.includes('Sete Saias'));assert(form.textContent.includes('10/09/2026'));assert(!app.calls.some(c=>c.name==='v4_api_regularize_obligation'));
+  }finally{app.close();}
+});
+test('person detail marks unidentified work explicitly and safely renders history and cancelled receipts',()=>{
+  const app=boot();
+  try{
+    const target=app.w.document.createElement('div');app.w.document.body.appendChild(target);
+    app.api.renderPersonDetail(target,{person:{id:'person-2',fullName:'Outra pessoa'},financial:{creditCents:1200,debtCents:7000,creditEvidence:[{label:'Crédito recebido',amountCents:1200}],debtEvidence:[{obligationId:'debt-2',serviceName:'Agrado coletivo',serviceCategory:'AGRADO_COLETIVO',pendingCents:7000}]},history:[{event_type:'PAYMENT',title:'<script>alert(1)</script>',status:'CANCELLED',detail:'PIX',amount_cents:7000,occurred_at:'2026-09-01'}]});
+    assert(target.querySelector('.personDebtRow .personAlert').textContent.includes('Trabalho específico não identificado'));assert.equal(target.querySelector('.regularizeDebt').dataset.serviceName,'Agrado coletivo');assert.equal(target.querySelectorAll('script').length,0);assert(target.textContent.includes('<script>alert(1)</script>'));assert(target.textContent.includes('Recebimento excluído'));assert(target.querySelector('.historyCancelled'));assert.equal(target.querySelector('.personCreditSection').open,false);assert.equal(target.querySelector('.personHistorySection').open,false);
   }finally{app.close();}
 });
