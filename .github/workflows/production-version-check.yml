@@ -22,6 +22,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          node tests/check-syntax.cjs
           for f in assets/app.js assets/v*.js assets/password-guard.js assets/login-alias.js assets/config.js assets/bundle.js; do
             node --check "$f"
           done
@@ -47,6 +48,21 @@ jobs:
         run: |
           set -euo pipefail
           for domain in 'https://sunshine.ymnegocios.com.br/' 'https://sunshine-ecossistema.vercel.app/'; do
+            # Git integration builds asynchronously. Verify the actual files after it finishes.
+            matched=false
+            for attempt in $(seq 1 12); do
+              curl -fsSL --connect-timeout 8 --max-time 25 -H 'Cache-Control: no-cache' "${domain}?health=${GITHUB_SHA}-${attempt}" -o "$RUNNER_TEMP/sunshine-production.html" || true
+              curl -fsSL --connect-timeout 8 --max-time 25 -H 'Cache-Control: no-cache' "${domain}assets/finance-operations.js?health=${GITHUB_SHA}-${attempt}" -o "$RUNNER_TEMP/sunshine-production.js" || true
+              if cmp -s index.html "$RUNNER_TEMP/sunshine-production.html" && cmp -s assets/finance-operations.js "$RUNNER_TEMP/sunshine-production.js"; then
+                matched=true
+                break
+              fi
+              sleep 15
+            done
+            if [ "$matched" != true ]; then
+              echo "Production files do not match commit ${GITHUB_SHA}: ${domain}"
+              exit 1
+            fi
             html=$(curl -fsSL --connect-timeout 8 --max-time 25 -H 'Cache-Control: no-cache' "${domain}?health=${GITHUB_SHA}")
 
             # Core V4 shell and login must be present.

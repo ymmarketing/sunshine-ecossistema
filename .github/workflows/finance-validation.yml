@@ -1,0 +1,22 @@
+name: Sunshine finance validation
+on:
+  pull_request:
+  push:
+    branches: [main, improvements-20260930]
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate application JavaScript
+        run: node tests/check-syntax.cjs
+      - name: Install isolated test dependency
+        run: npm install --prefix "$RUNNER_TEMP/sunshine-tests" jsdom@26.1.0 --no-audit --no-fund
+      - name: Test finance interface and uncertain saves
+        run: NODE_PATH="$RUNNER_TEMP/sunshine-tests/node_modules" node --test tests/finance-ui.cjs
