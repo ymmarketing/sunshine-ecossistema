@@ -26,7 +26,7 @@ begin
   perform public.v4_api_save_expense(null,jsonb_build_object('description','Rateio inválido','scope','WORK','amountCents',1000,'occurredOn','2099-01-10','status','PENDING','allocations',jsonb_build_array(jsonb_build_object('workId',v_work,'amountCents',999)),'idempotencyKey',v_key||'-invalid'));
  exception when raise_exception then v_failed:=true;end;
  if not v_failed then raise exception 'Invalid allocation accepted';end if;
- perform public.v4_api_save_expense(v_expense,jsonb_build_object('description','Despesa temporária alterada','category','OUTRO','scope','STOCK','amountCents',1200,'occurredOn','2099-01-10','status','PENDING','allocations','[]'::jsonb));
+ perform public.v4_api_save_expense(v_expense,jsonb_build_object('description','Despesa temporária alterada','category','OUTRO','scope','WORK','amountCents',1200,'occurredOn','2099-01-10','status','PENDING','allocations',jsonb_build_array(jsonb_build_object('serviceId',v_service,'amountCents',1200))));
  perform public.v4_api_set_expense_status(v_expense,'CANCELLED','Validação temporária');
  perform public.v4_api_set_expense_status(v_expense,'PENDING','Restaurar teste');
  if (public.v4_finance_management('2099-01-01','2099-01-31',2099)->>'pendingCostsCents')::bigint<>1200 then raise exception 'Pending expense status failed';end if;
@@ -62,6 +62,14 @@ begin
  v_result:=public.v4_api_register_manual_entry_operational(v_payload);
  select sum(ce.amount_cents) into v_amount from sunshine_v4.commission_entries ce join sunshine_v4.payment_allocations a on a.id=ce.allocation_id where a.payment_id=(v_result->>'paymentId')::uuid;
  if v_amount<>10000 then raise exception 'Historical sale rule changed: %',v_amount;end if;
+
+ -- Before/after midnight in Sao Paulo, despite both timestamps being October UTC.
+ for v_count in 0..1 loop
+  v_payload:=v_payload||jsonb_build_object('idempotencyKey',v_key||'-boundary-'||v_count,'paidAt',case when v_count=0 then '2026-10-01T02:59:59Z' else '2026-10-01T03:00:00Z' end);
+  v_result:=public.v4_api_register_manual_entry_operational(v_payload);
+  select sum(ce.amount_cents) into v_amount from sunshine_v4.commission_entries ce join sunshine_v4.payment_allocations a on a.id=ce.allocation_id where a.payment_id=(v_result->>'paymentId')::uuid;
+  if v_amount<>(case when v_count=0 then 10000 else 7000 end) then raise exception 'Sao Paulo midnight commission boundary failed: %, %',v_count,v_amount;end if;
+ end loop;
 
  -- A fully associated receipt can be replayed with the same key.
  insert into sunshine_v4.payments(payer_person_id,source,amount_cents,net_cents,paid_at,idempotency_key,status) values(v_person,'MANUAL_V4',10000,10000,'2026-10-03T12:00:00-03:00',v_key||'-existing-payment','PAID') returning id into v_payment;
@@ -106,7 +114,7 @@ begin
  v_result:=public.v4_prepare_accountant_report('2099-01-01','2099-01-31','https://drive.google.com/drive/folders/test',v_key||'-report');
  if v_result->>'recipient'<>'bksm00@gmail.com' or v_result->>'status'<>'DRAFT' then raise exception 'Accountant draft failed';end if;
  if exists(select 1 from sunshine_v4.accountant_reports where id=(v_result->>'id')::uuid and status='SENT') then raise exception 'Test unexpectedly sent email';end if;
- perform set_config('sunshine.test_result','PASS: expenses, goals, birthdays, all four entry retries, multi-reference ordering, October and historical splits, individual split, reversible exclusion, protected payout, Asaas pending/released cash and deduplication, draft without sending',true);
+ perform set_config('sunshine.test_result','PASS: expenses, goals, birthdays, all four entry retries, multi-reference ordering, October and historical splits including Sao Paulo midnight, individual split, reversible exclusion, protected payout, Asaas pending/released cash and deduplication, draft without sending',true);
 end $test$;
 select current_setting('sunshine.test_result') as test_result;
 rollback;

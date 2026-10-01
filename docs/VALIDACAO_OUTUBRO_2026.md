@@ -1,7 +1,7 @@
 # Sunshine — alterações e teste final
 
 Base: commit `2657d8a803a3fbc6d74132055ce5a0c02a5f5e3d`, repositório `ymmarketing/sunshine-ecossistema`.
-Solicitação: PDF “MELHORIAS E CORREÇÕES SUNSHINE”.
+Solicitação: PDF “MELHORIAS E CORREÇÕES SUNSHINE”, complementado pela validação de custos, listas extensas e filtros de Pessoas em 30/09/2026 (São Paulo).
 
 ## Entrega consolidada
 
@@ -9,7 +9,7 @@ Solicitação: PDF “MELHORIAS E CORREÇÕES SUNSHINE”.
 |---|---|---|
 | Associações não salvas | Confirmação dos itens e inscrições no banco após gravar; mesma referência nas tentativas seguintes; recuperação da tentativa na mesma aba | Uma associação persistida, mesmo se a resposta se perder por queda de conexão |
 | Financeiro → Receita | Alteração dos nomes visíveis, preservando a navegação existente | Receita no menu, rodapé e título |
-| Custos | Cadastro e edição de despesas; um trabalho aberto, vários trabalhos com rateio, operação fixa ou estoque; data da despesa e do pagamento separadas | Rateio fecha exatamente o total; custo pendente não vira despesa paga |
+| Custos | Cadastro e edição de despesas; trabalhos abertos ou concluídos, trabalhos particulares identificados pela pessoa, serviços cadastrados ou custo fixo; rateio entre destinos e datas separadas | Somente custo fixo dispensa destino; estoque também exige destino; rateio fecha o total; pendência não vira despesa paga |
 | Faturamento | Vendas, receita bruta, despesas pagas, resultado, margem, reserva, Asaas a repassar, detalhes, metas mensais e comparação anual | Valores e seus registros de origem conferíveis pelo período |
 | Perfil e participação | Ranking de beneficiários, participações por tipo, faixas de idade e sexo informado opcionalmente no cadastro | Idade/sexo não informados continuam identificados como não informados |
 | Contabilidade | Rascunho com período, rendimentos, despesas, lucro e link Drive; destinatário fixo `bksm00@gmail.com`; envio seguro pelo Resend e opção Abrir Gmail | Primeiro conferir o rascunho; enviar somente ao clicar na opção desejada |
@@ -18,17 +18,21 @@ Solicitação: PDF “MELHORIAS E CORREÇÕES SUNSHINE”.
 | Comissões desde 01/10/2026 | Reserva de 30%; divisão de 70/15/15 sobre os 70% restantes; data original da venda em São Paulo; divisão individual editável | R$ 100 geram R$ 30 de reserva, R$ 49 para responsável e R$ 10,50 para cada outra integrante |
 | Pró-labore | Botão cria previsões mensais de R$ 1.620 para Yasmin e Lourdes, a partir de outubro | Criar previsão não registra pagamento; repetir o botão não duplica a previsão |
 | Editar / excluir lançamentos | Editar beneficiário, trabalho, serviço, total, referência e responsável; corrigir recebimento manual; remover associação; exclusão com justificativa, auditoria e restauração | Histórico e comprovantes preservados; comissão paga protegida de alterações na divisão |
-| Aniversários | Lista por mês, destaque para hoje e cópia apenas de selecionados | Nenhum disparo automático de mensagens |
+| Pessoas e aniversários | Busca por nome/telefone/e-mail e filtros de crédito/pagamento pendente no topo; aniversários recolhidos, por mês e com cópia apenas dos selecionados | Filtros sempre visíveis e nenhum disparo automático |
+| Listas extensas | Seta para recolher/expandir pagamentos, pessoas, trabalhos, perguntas, mensalidades, saldos, cobrança, custos, tabela de metas mensais, ranking e exclusões | Começam recolhidas; busca/filtros de Pessoas, trabalhos e perguntas expandem seus resultados |
 | Atualizar pelo celular | Integração GitHub–Vercel já conectada; testes de interface no GitHub; verificação dos arquivos publicados após implantação | Alteração revisada entra em `main`, Vercel publica automaticamente e a verificação confere a versão |
 
 ## O que já foi verificado
 
 - Sintaxe do JavaScript da aplicação e do novo módulo.
-- Cinco testes de interface: navegação/cabeçalho; campo demográfico opcional; queda de conexão; confirmação dos vínculos; erro definitivo permitindo corrigir; rateio de três trabalhos; aniversários sem envio automático.
-- Testes reais das funções do banco, em transação revertida: custos, metas, aniversário em ano não bissexto, quatro modalidades de associação e repetição, mensalidades com referências distintas, comissão antiga e nova, divisão individual, exclusão/restauração, proteção de comissão paga, repasse e deduplicação Asaas, rascunho contábil sem enviar e-mail.
+- Sete testes de interface: navegação/cabeçalho e campo demográfico opcional; queda de conexão e confirmação dos vínculos; correção após erro definitivo; rateio de três trabalhos; aniversários sem envio; destinos obrigatórios e pesquisa por pessoa; listas recolhíveis com busca por nome/telefone e filtro de pendência preservados.
+- Testes reais das funções do banco, em transação revertida: custos, metas, aniversário em ano não bissexto, quatro modalidades de associação e repetição, mensalidades com referências distintas, comissão antiga e nova, virada em 01/10 às 00:00 de São Paulo, divisão individual, exclusão/restauração, proteção de comissão paga, repasse e deduplicação Asaas, rascunho contábil sem enviar e-mail.
+- Teste adicional dos destinos reais: trabalho concluído, trabalho particular por pessoa e Agrado Coletivo; rateio misto, edição/repetição e rejeição de destinos vazios, repetidos, inválidos ou múltiplos na mesma linha.
 - Impressões digitais dos pagamentos, associações e comissões existentes mantidas após os testes. Nenhuma pessoa de teste ficou gravada.
 - Funções financeiras novas bloqueadas para acesso anônimo; credencial Resend acessível somente pelo servidor; tabelas novas sem acesso direto pelo cliente.
 - Função de envio contábil publicada no Supabase com autenticação obrigatória.
+- Migrações do combo registradas no banco e identificadas pelos mesmos números no repositório, evitando reaplicação por diferença de versão.
+- Revisão de segurança: a consulta de destinos requer conta ativa e permissão de edição, sem acesso anônimo. O aviso de função `SECURITY DEFINER` autenticada é esperado para estas APIs protegidas; as tabelas financeiras continuam sem acesso direto. Referência: [revisão de funções autenticadas](https://supabase.com/docs/guides/database/database-linter?lint=0029_authenticated_security_definer_function_executable). Os avisos de RLS sem políticas e proteção contra senhas vazadas já existiam antes deste complemento.
 
 ## Configuração externa pendente
 
@@ -57,13 +61,26 @@ Use inicialmente a implantação de teste. Ela usa o mesmo banco da Sunshine: cr
 
 ### Custos
 
-- [ ] Cadastrar um custo a pagar de um trabalho aberto.
+- [ ] Abrir Custos → + Custo: conferir trabalhos cadastrados (abertos e concluídos), trabalhos particulares por pessoa e serviços.
+- [ ] Usar a busca de destino pelo nome da pessoa ou trabalho e selecionar a opção correta.
+- [ ] Cadastrar um custo a pagar de um trabalho aberto; conferir também um trabalho concluído.
+- [ ] Associar um custo ao Agrado Coletivo e outro a um trabalho particular da pessoa correta; atualizar a página e conferir os destinos.
 - [ ] Cadastrar R$ 30 de velas divididos em três trabalhos: R$ 10 para cada um.
 - [ ] Tentar salvar um rateio diferente de R$ 30: o sistema deve impedir.
-- [ ] Cadastrar despesas fixas e de estoque sem trabalho associado.
+- [ ] Tentar salvar um custo não fixo sem destino: o sistema deve impedir.
+- [ ] Cadastrar estoque com destino selecionado e custo fixo sem destino: ambos devem funcionar.
 - [ ] Editar descrição, valor, rateio e datas; atualizar a página e conferir a persistência.
 - [ ] Alterar uma despesa para paga e informar a data: o resultado deve considerar essa data de pagamento.
 - [ ] Excluir uma despesa de teste com justificativa e restaurá-la como pendente.
+
+### Listas e filtros de Pessoas
+
+- [ ] Abrir Receita: **Pagamentos do período — mais recente primeiro** começa recolhido. Clicar na seta para abrir e novamente para recolher.
+- [ ] Repetir o recolhimento nas listas de Home, Pessoas, Trabalhos, Perguntas, Filhos da Casa, Obrigações/saldos, Cobrança, Custos e Faturamento.
+- [ ] Em Pessoas, conferir busca e situação financeira no topo, antes dos aniversariantes.
+- [ ] Buscar uma pessoa pelo nome e depois pelo telefone: os resultados se expandem e mostram os registros esperados.
+- [ ] Escolher **Com pagamento pendente** e **Com crédito**: conferir os filtros e preservar a busca digitada.
+- [ ] Abrir aniversariantes pela seta e recolher novamente: a busca e os filtros continuam visíveis.
 
 ### Faturamento e metas
 
@@ -77,11 +94,13 @@ Use inicialmente a implantação de teste. Ela usa o mesmo banco da Sunshine: cr
 ### Asaas e comissões
 
 - [ ] Comparar recebimentos Asaas confirmados com os liberados, conferindo líquido e previsão de crédito quando disponível.
-- [ ] Conferir a venda de R$ 100 desde 01/10/2026: reserva R$ 30, responsável R$ 49, demais R$ 10,50 cada.
+- [ ] **Somente a partir de 01/10/2026, horário de São Paulo:** conferir uma venda real de R$ 100 com regra padrão: reserva R$ 30, responsável R$ 49, demais R$ 10,50 cada.
 - [ ] Conferir uma venda anterior a outubro: sua regra anterior deve permanecer.
 - [ ] Editar a divisão individual de um lançamento de teste; conferir soma de 100% com a reserva e que outros lançamentos não mudaram.
 - [ ] Em um lançamento com comissão já paga, editar somente evento/descrição: o pagamento de comissão deve permanecer.
 - [ ] Criar previsões de pró-labore de outubro; conferir R$ 1.620 para cada uma e situação **a pagar**, sem mudança no resultado. Repetir o botão e conferir ausência de duplicação.
+
+A validação manual da regra de outubro fica pendente até haver uma venda desse período. O teste automático já simulou a virada sem deixar dados fictícios gravados. A data UTC do servidor não antecipa a regra no Brasil.
 
 ### Correções e exclusões
 

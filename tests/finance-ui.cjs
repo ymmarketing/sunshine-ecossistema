@@ -54,15 +54,14 @@ test('definitive database validation allows correction instead of permanently bl
   } finally {app.close();}
 });
 test('cost rateio supports three works and sends integer cents',async()=>{
-  const saved=[];const app=boot(async(name,args)=>{if(name==='v4_api_save_expense'){saved.push(args);return {id:'expense-1'};}if(name==='v4_finance_management')return {expenses:[],pendingCostsCents:0};return [];});
+  const saved=[];const app=boot(async(name,args)=>{if(name==='v4_api_save_expense'){saved.push(args);return {id:'expense-1'};}if(name==='v4_finance_management')return {expenses:[],pendingCostsCents:0};if(name==='v4_cost_destinations')return [1,2,3].map(i=>({kind:'WORK',id:'work-'+i,label:'Trabalho '+i}));return [];});
   try {
-    app.api.state.allWorks=[1,2,3].map(i=>({work_id:'work-'+i,title:'Trabalho '+i,status:'OPEN'}));
-    app.w.document.getElementById('newExpense').click();
+    await app.w.document.getElementById('newExpense').onclick();
     const e=id=>app.w.document.getElementById(id);
     e('expenseScope').value='SHARED';e('expenseScope').dispatchEvent(new app.w.Event('change'));
     e('addExpenseWork').click();
     e('expenseDescription').value='Velas';e('expenseAmount').value='30,00';
-    for(let i=0;i<3;i++){e('expenseWork'+i).value='work-'+(i+1);e('expenseRate'+i).value='10,00';}
+    for(let i=0;i<3;i++){e('expenseWork'+i).value='WORK:work-'+(i+1);e('expenseRate'+i).value='10,00';}
     await e('expenseForm').onsubmit({preventDefault(){}});
     assert.equal(saved.length,1);assert.equal(saved[0].p_data.amountCents,3000);
     assert.equal(saved[0].p_data.allocations.length,3);assert(saved[0].p_data.allocations.every(x=>x.amountCents===1000));
@@ -76,4 +75,46 @@ test('birthday list is user selected and performs no automatic messaging',async(
     assert(app.w.document.getElementById('birthdayList').textContent.includes('Teste <script>'));assert.equal(app.w.document.getElementById('birthdayList').querySelector('script'),null);
     assert.deepEqual(app.calls.map(x=>x.name),['v4_birthdays']);
   } finally {app.close();}
+});
+
+test('nonfixed costs require a destination and offer completed works, private person work and services',async()=>{
+  const saved=[],destinations=[{kind:'WORK',id:'past-work',label:'Agrado coletivo · Concluído'}, {kind:'ITEM',id:'private-item',label:'Trabalho particular — Pessoa Exemplo · 30/09/2026'}, {kind:'SERVICE',id:'service-1',label:'Serviço — Agrado Coletivo'}];
+  const app=boot(async(name,args)=>{if(name==='v4_cost_destinations')return destinations;if(name==='v4_api_save_expense'){saved.push(args.p_data);return {id:'expense-1'};}if(name==='v4_finance_management')return {expenses:[],pendingCostsCents:0};return [];});
+  const e=id=>app.w.document.getElementById(id);
+  try {
+    await e('newExpense').onclick();
+    assert.equal(e('expenseScope').value,'WORK');assert.equal(e('expenseScope').querySelector('[value="STOCK"]'),null);
+    assert(e('expenseWork0').textContent.includes('Concluído'));assert(e('expenseWork0').textContent.includes('Pessoa Exemplo'));assert(e('expenseWork0').textContent.includes('Serviço — Agrado'));
+    e('expenseDescription').value='Velas';e('expenseCategory').value='ESTOQUE';e('expenseAmount').value='10,00';
+    await e('expenseForm').onsubmit({preventDefault(){}});
+    assert.equal(saved.length,0);assert(e('expenseMsg').textContent.includes('Selecione o destino'));
+    e('expenseSearch0').value='pessoa exemplo';e('expenseSearch0').dispatchEvent(new app.w.Event('input'));assert.equal(e('expenseWork0').options.length,2);
+    e('expenseWork0').value='ITEM:private-item';
+    await e('expenseForm').onsubmit({preventDefault(){}});
+    assert.equal(saved[0].allocations[0].itemId,'private-item');assert.equal(saved[0].allocations[0].amountCents,1000);assert.equal(saved[0].category,'ESTOQUE');
+    await e('newExpense').onclick();e('expenseScope').value='WORK';e('expenseScope').dispatchEvent(new app.w.Event('change'));e('expenseWork0').value='SERVICE:service-1';e('expenseAmount').value='5,00';
+    await e('expenseForm').onsubmit({preventDefault(){}});assert.equal(saved[1].allocations[0].serviceId,'service-1');
+    await e('newExpense').onclick();e('expenseScope').value='FIXED';e('expenseScope').dispatchEvent(new app.w.Event('change'));e('expenseAmount').value='10,00';
+    await e('expenseForm').onsubmit({preventDefault(){}});assert.equal(saved[2].scope,'FIXED');assert.equal(saved[2].allocations.length,0);
+  }finally{app.close();}
+});
+test('long lists and birthdays start collapsed; people search and debt filters remain above birthdays',async()=>{
+  const app=boot(async()=>[]),w=app.w,e=id=>w.document.getElementById(id);
+  try{
+    for(const id of ['annualTable','paymentList','peopleList','workList','questionList','houseList','receivableList','collectionList','expenseList','participantRanking','financialVoids']){
+      const box=e(id+'Disclosure');assert.equal(box.open,false,id);box.querySelector('summary').click();assert.equal(box.open,true,id);box.querySelector('summary').click();assert.equal(box.open,false,id);
+    }
+    assert.equal(e('birthdayDisclosure').open,false);
+    assert(e('peopleQuery').compareDocumentPosition(e('birthdayDisclosure'))&w.Node.DOCUMENT_POSITION_FOLLOWING);
+    assert(e('peopleBalanceFilter').compareDocumentPosition(e('birthdayDisclosure'))&w.Node.DOCUMENT_POSITION_FOLLOWING);
+    assert.equal(e('peopleQuery').closest('details'),null);assert.equal(e('peopleBalanceFilter').closest('details'),null);
+    assert.equal(e('peopleBalanceFilter').querySelector('[value="DEBT"]').textContent,'Com pagamento pendente');
+    for(const query of ['Pessoa Exemplo','551199998888']){
+      e('peopleQuery').value=query;e('peopleQuery').dispatchEvent(new w.Event('input',{bubbles:true}));
+      await new Promise(r=>setTimeout(r,300));
+      const call=app.calls.filter(x=>x.name==='v4_people_with_balances').at(-1);assert.equal(call.args.p_query,query);assert.equal(e('peopleListDisclosure').open,true);assert.equal(e('birthdayDisclosure').open,false);
+    }
+    e('peopleBalanceFilter').value='DEBT';e('peopleBalanceFilter').dispatchEvent(new w.Event('change',{bubbles:true}));
+    await new Promise(r=>setTimeout(r,0));assert.equal(app.calls.filter(x=>x.name==='v4_people_with_balances').at(-1).args.p_balance_filter,'DEBT');
+  }finally{app.close();}
 });
