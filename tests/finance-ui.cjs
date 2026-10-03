@@ -11,7 +11,7 @@ function boot(handler=async()=>null) {
   w.supabase={createClient:()=>({auth:{getSession:async()=>({data:{session:null}}),signOut:async()=>{}},rpc:async(name,args)=>{calls.push({name,args});try{return {data:await handler(name,args),error:null}}catch(error){return {data:null,error}}}})};
   w.eval(fs.readFileSync(path.join(root,'assets/finance-operations.js'),'utf8'));
   const inline=[...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(x=>x[1]).join('\n');
-  w.eval(inline.replace('\ninit();','\nwindow.__testing={get operations(){return operations},state:state,openEntry:openEntry,loadPeople:loadPeople,loadPersonDetail:loadPersonDetail,renderPersonDetail:renderPersonDetail,openDebtRegularization:openDebtRegularization};init();'));
+  w.eval(inline.replace('\ninit();','\nwindow.__testing={get operations(){return operations},state:state,openEntry:openEntry,loadPeople:loadPeople,loadPersonDetail:loadPersonDetail,renderPersonDetail:renderPersonDetail,openDebtRegularization:openDebtRegularization,loadFinance:loadFinance};init();'));
   return {w,dom,calls,api:w.__testing,close:()=>w.close()};
 }
 test('new modules mount, navigation and brand return to Home, sex is optional',()=>{
@@ -144,5 +144,36 @@ test('person detail marks unidentified work explicitly and safely renders histor
     const target=app.w.document.createElement('div');app.w.document.body.appendChild(target);
     app.api.renderPersonDetail(target,{person:{id:'person-2',fullName:'Outra pessoa'},financial:{creditCents:1200,debtCents:7000,creditEvidence:[{label:'Crédito recebido',amountCents:1200}],debtEvidence:[{obligationId:'debt-2',serviceName:'Agrado coletivo',serviceCategory:'AGRADO_COLETIVO',pendingCents:7000}]},history:[{event_type:'PAYMENT',title:'<script>alert(1)</script>',status:'CANCELLED',detail:'PIX',amount_cents:7000,occurred_at:'2026-09-01'}]});
     assert(target.querySelector('.personDebtRow .personAlert').textContent.includes('Trabalho específico não identificado'));assert.equal(target.querySelector('.regularizeDebt').dataset.serviceName,'Agrado coletivo');assert.equal(target.querySelectorAll('script').length,0);assert(target.textContent.includes('<script>alert(1)</script>'));assert(target.textContent.includes('Recebimento excluído'));assert(target.querySelector('.historyCancelled'));assert.equal(target.querySelector('.personCreditSection').open,false);assert.equal(target.querySelector('.personHistorySection').open,false);
+  }finally{app.close();}
+});
+
+test('regularization requires a responsible and sends it with the original obligation in all payment modes',async()=>{
+  const team=['Yasmin','Lourdes','Rosely'].map((full_name,i)=>({member_id:'member-'+i,full_name}));
+  for(const mode of ['MANUAL','EXISTING','ASAAS']){
+    const writes=[];const app=boot(async(name,args)=>{
+      if(name==='v4_team_members')return team;
+      if(mode==='EXISTING'&&name==='v4_recent_payments')return [{payment_id:'received-1',payer_person_id:'person-1',signed_unallocated_cents:22000}];
+      if(mode==='ASAAS'&&name==='v4_asaas_pending')return [{entry_id:'asaas-1',matched_person_id:'person-1',amount_cents:22000}];
+      if(name==='v4_api_regularize_obligation'){writes.push(args);throw new Error('stop before refresh');}
+      return [];
+    });
+    try{
+      const button=app.w.document.createElement('button');Object.assign(button.dataset,{obligationId:'debt-1',personId:'person-1',pendingCents:'22000',serviceName:'Limpeza coletiva'});
+      await app.api.openDebtRegularization(button);
+      const e=id=>app.w.document.getElementById(id),form=e('regularizationForm');
+      assert.deepEqual([...e('regResponsible').options].slice(1).map(x=>x.textContent),['Yasmin','Lourdes','Rosely']);assert(e('regResponsible').required);
+      await form.onsubmit({preventDefault(){},currentTarget:form});assert.equal(writes.length,0);assert(e('regularizationMsg').textContent.includes('Selecione o responsável'));
+      e('regResponsible').value='member-2';await form.onsubmit({preventDefault(){},currentTarget:form});
+      assert.equal(writes.length,1);assert.equal(writes[0].p_obligation_id,'debt-1');assert.equal(writes[0].p_payload.responsibleMemberId,'member-2');assert.equal(writes[0].p_payload.mode,mode);
+      button.dataset.responsibleId='member-1';await app.api.openDebtRegularization(button);assert.equal(e('regResponsible').value,'member-1');
+    }finally{app.close();}
+  }
+});
+
+test('receipt reserve card uses backend amount and opens per-entry evidence',async()=>{
+  const app=boot(async(name)=>name==='v4_finance_dashboard_filtered'?{salesCents:526500,reserveCents:157950,commissionTotalCents:368550,reserveEvidence:[{personName:'Pessoa <script>',serviceName:'Limpeza',paidAt:'2026-10-03T12:00:00Z',costBp:3000,baseCents:22000,amountCents:6600}]}:[]);
+  try{
+    await app.api.loadFinance();const card=app.w.document.querySelector('[data-finance-detail="reserve"]');assert(card);assert(card.textContent.includes('RESERVA PARA CUSTOS'));assert.match(card.textContent,/1\.579,50/);
+    card.click();const list=app.w.document.getElementById('financeEvidenceList');assert(list.textContent.includes('Limpeza'));assert(list.textContent.includes('30%'));assert.match(list.textContent,/66,00/);assert.equal(list.querySelector('script'),null);
   }finally{app.close();}
 });
