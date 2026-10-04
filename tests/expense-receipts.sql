@@ -1,0 +1,115 @@
+-- All fixtures, phones and audit entries are rolled back. No real launch remains.
+begin;
+do $test$
+declare v_member uuid;v_auth uuid;v_phone text:='+5599999999999';v_work uuid;v_done uuid;v_item uuid;
+ v_general uuid;v_fixed uuid;v_inactive uuid;v_receipt uuid;v_legacy uuid;v_payload jsonb;v_result jsonb;
+ v_lines jsonb;v_total numeric;v_count integer;v_function text;v_denied boolean;v_original text;
+begin
+ select id,auth_user_id into v_member,v_auth from sunshine_v4.team_members where active and lower(full_name)='yasmin';
+ select id into v_work from sunshine_v4.works where status='OPEN' limit 1;
+ select id into v_done from sunshine_v4.works where status='DONE' limit 1;
+ select id into v_item from public.cost_items where active limit 1;
+ if v_member is null or v_work is null or v_item is null then raise exception 'Missing fixture data';end if;
+ update sunshine_v4.team_members set whatsapp_phone=v_phone where id=v_member;
+ insert into public.general_cost_categories(name,kind) values('__TEST_RATEIO__'||gen_random_uuid(),'RATEIO_GERAL') returning id into v_general;
+ insert into public.general_cost_categories(name,kind,active) values('__TEST_INATIVA__'||gen_random_uuid(),'CUSTO_FIXO',false) returning id into v_inactive;
+ perform set_config('request.jwt.claim.sub','',true);
+ perform set_config('request.jwt.claims','{"role":"service_role"}',true);
+ execute 'set local role service_role';
+ v_result:=public.list_active_expense_targets();
+ if v_result->>'ok'<>'true' or not exists(select 1 from jsonb_array_elements(v_result->'works') x where x->>'id'=v_work::text and x ? 'entity_detail') then raise exception 'Targets incomplete: %',v_result;end if;
+ v_original:='__TEST_MSG__'||gen_random_uuid();
+ v_payload:=jsonb_build_object('total_amount',100,'expense_date','2099-02-15','competence_month','2099-02-01','supplier_name','VALIDAÇÃO TEMPORÁRIA','payment_method','PIX','whatsapp_message_id',v_original,
+ 'lines',jsonb_build_array(jsonb_build_object('destination','TRABALHO','work_id',v_work,'cost_item_id',v_item,'amount',50),jsonb_build_object('destination','RATEIO_GERAL','general_category_id',v_general,'amount',50)));
+ v_result:=public.create_pending_receipt(v_phone,v_payload);
+ if v_result->>'ok'<>'true' then raise exception 'Create failed: %',v_result;end if;
+ v_receipt:=(v_result->>'receipt_id')::uuid;
+ v_result:=public.create_pending_receipt(v_phone,v_payload);
+ if v_result->>'receipt_id'<>v_receipt::text or v_result->>'idempotent'<>'true' then raise exception 'Duplicate protection failed: %',v_result;end if;
+ if (select count(*) from public.work_expenses where receipt_id=v_receipt)<>2 then raise exception 'Duplicate lines';end if;
+ v_result:=public.attach_receipt_file(v_receipt,'file_test_123','https://drive.google.com/file/d/file_test_123/view');
+ if v_result->>'code'<>'STATUS_INVALIDO' then raise exception 'Pending attachment accepted: %',v_result;end if;
+ v_result:=public.create_pending_receipt('+5511111111111',v_payload);
+ if v_result->>'code'<>'NAO_AUTORIZADO' then raise exception 'Unknown phone accepted: %',v_result;end if;
+ v_lines:=v_payload->'lines';
+ v_result:=public.update_pending_receipt(v_receipt,v_phone,jsonb_set(v_payload,'{lines,0,work_id}',to_jsonb(gen_random_uuid()::text)));
+ if v_result->>'code'<>'TRABALHO_NAO_ENCONTRADO' then raise exception 'Unknown work accepted: %',v_result;end if;
+ v_result:=public.update_pending_receipt(v_receipt,v_phone,jsonb_set(v_payload,'{lines,0,work_id}',to_jsonb(v_done::text)));
+ if v_result->>'code'<>'TRABALHO_INATIVO' then raise exception 'Closed work accepted: %',v_result;end if;
+ v_result:=public.update_pending_receipt(v_receipt,v_phone,v_payload||jsonb_build_object('lines',jsonb_build_array(jsonb_build_object('destination','CUSTO_FIXO','general_category_id',v_inactive,'amount',100))));
+ if v_result->>'code'<>'CATEGORIA_INATIVA' then raise exception 'Inactive category accepted: %',v_result;end if;
+ v_result:=public.update_pending_receipt(v_receipt,v_phone,jsonb_set(v_payload,'{total_amount}','101'));
+ if v_result->>'code'<>'SOMA_DIFERENTE' then raise exception 'Mismatched create total accepted: %',v_result;end if;
+ if (select total_amount from public.expense_receipts where id=v_receipt)<>100 or (select sum(amount) from public.work_expenses where receipt_id=v_receipt)<>100 then raise exception 'Failed update mutated receipt';end if;
+ v_result:=public.update_pending_receipt(v_receipt,v_phone,jsonb_set(jsonb_set(v_payload,'{lines,0,amount}','60'),'{lines,1,amount}','40')||jsonb_build_object('whatsapp_message_id','correction-message-new'));
+ if v_result->>'ok'<>'true' or (select whatsapp_message_id from public.expense_receipts where id=v_receipt)<>v_original then raise exception 'Correction changed original message: %',v_result;end if;
+ v_result:=public.update_pending_receipt(v_receipt,v_phone,v_payload);
+ if v_result->>'ok'<>'true' then raise exception 'Reset rateio failed: %',v_result;end if;
+ update public.expense_receipts set total_amount=101 where id=v_receipt;
+ v_result:=public.confirm_receipt(v_receipt,v_phone);
+ if v_result->>'code'<>'SOMA_DIFERENTE' then raise exception 'Mismatched confirm accepted: %',v_result;end if;
+ update public.expense_receipts set total_amount=100 where id=v_receipt;
+ v_result:=public.confirm_receipt(v_receipt,v_phone);
+ if v_result->>'ok'<>'true' or v_result->>'status'<>'CONFIRMED' then raise exception 'Confirm failed: %',v_result;end if;
+ select sum(line_amount),count(*) into v_total,v_count from public.v_monthly_expenses where receipt_id=v_receipt;
+ if v_total<>100 or v_count<>2 or exists(select 1 from public.v_monthly_expenses where receipt_id=v_receipt and (target_name is null or sent_by is null)) then raise exception 'Monthly view wrong';end if;
+ v_result:=public.confirm_receipt(v_receipt,v_phone);
+ if v_result->>'idempotent'<>'true' then raise exception 'Confirmation retry failed';end if;
+ v_result:=public.update_pending_receipt(v_receipt,v_phone,v_payload);
+ if v_result->>'code'<>'STATUS_INVALIDO' then raise exception 'Confirmed edit accepted';end if;
+ v_denied:=false;
+ begin update public.work_expenses set amount=49 where receipt_id=v_receipt;exception when raise_exception then v_denied:=true;end;
+ if not v_denied then raise exception 'Confirmed direct line edit accepted';end if;
+ v_result:=public.attach_receipt_file(v_receipt,'file_test_123','https://drive.google.com/file/d/file_test_123/view');
+ if v_result->>'ok'<>'true' then raise exception 'Attachment failed: %',v_result;end if;
+ v_result:=public.attach_receipt_file(v_receipt,'file_test_123','https://drive.google.com/file/d/file_test_123/view');
+ if v_result->>'ok'<>'true' or v_result->>'idempotent'<>'true' then raise exception 'Attachment retry failed: %',v_result;end if;
+ v_result:=public.attach_receipt_file(v_receipt,'other_file_123','https://drive.google.com/file/d/other_file_123/view');
+ if v_result->>'code'<>'ARQUIVO_JA_VINCULADO' then raise exception 'Attachment overwrite accepted';end if;
+ v_result:=public.cancel_receipt(v_receipt,v_phone);
+ if v_result->>'ok'<>'true' or exists(select 1 from public.v_monthly_expenses where receipt_id=v_receipt) then raise exception 'Cancelled expense counted';end if;
+ v_result:=public.cancel_receipt(v_receipt,v_phone);
+ if v_result->>'idempotent'<>'true' then raise exception 'Cancel retry failed';end if;
+ execute 'reset role';
+ -- New categories are returned without deploys or changed code.
+ insert into public.general_cost_categories(name,kind) values('__TEST_NEW_FIXED__'||gen_random_uuid(),'CUSTO_FIXO') returning id into v_fixed;
+ v_result:=public.list_active_expense_targets();
+ if not exists(select 1 from jsonb_array_elements(v_result->'general_cost_categories') x where x->>'id'=v_fixed::text) then raise exception 'New category missing';end if;
+ -- Old MANUAL expenses without receipt/category and completed work stay valid.
+ insert into public.work_expenses(work_id,description,amount,source) values(v_done,'__TEST_LEGACY__',5,'MANUAL') returning id into v_legacy;
+ update public.work_expenses set amount=6 where id=v_legacy;
+ if (select amount from public.work_expenses where id=v_legacy)<>6 then raise exception 'Legacy broken';end if;
+ -- Manual identity comes from the session, never a supplied phone/member.
+ perform set_config('request.jwt.claim.sub',v_auth::text,true);
+ perform set_config('request.jwt.claims',jsonb_build_object('sub',v_auth,'role','authenticated')::text,true);
+ execute 'set local role authenticated';
+ v_payload:=v_payload||jsonb_build_object('idempotency_key','__TEST_MANUAL__'||gen_random_uuid());
+ v_result:=public.v4_manual_create_receipt(v_payload);
+ if v_result->>'ok'<>'true' then raise exception 'Manual failed: %',v_result;end if;
+ v_receipt:=(v_result->>'receipt_id')::uuid;
+ v_result:=public.v4_manual_confirm_receipt(v_receipt);
+ if v_result->>'ok'<>'true' then raise exception 'Manual confirmation failed: %',v_result;end if;
+ if (select sum(line_amount) from public.v_monthly_expenses where receipt_id=v_receipt)<>100 then raise exception 'Manual monthly view failed';end if;
+ execute 'reset role';
+ -- All agent RPCs denied to both client roles; internal helpers also denied.
+ foreach v_function in array array['list_active_expense_targets()','create_pending_receipt(text,jsonb)','update_pending_receipt(uuid,text,jsonb)','confirm_receipt(uuid,text)','cancel_receipt(uuid,text)','attach_receipt_file(uuid,text,text)'] loop
+  if has_function_privilege('anon','public.'||v_function,'EXECUTE') or has_function_privilege('authenticated','public.'||v_function,'EXECUTE') or not has_function_privilege('service_role','public.'||v_function,'EXECUTE') then raise exception 'Agent privileges invalid: %',v_function;end if;
+ end loop;
+ if has_function_privilege('authenticated','private.expense_create(text,jsonb,text)','EXECUTE') then raise exception 'Internal helper exposed';end if;
+ -- Temporary VIEWER assignment never becomes visible to other sessions and is rolled back.
+ delete from sunshine_v4.user_roles where user_id=v_auth;
+ insert into sunshine_v4.user_roles(user_id,role_code) values(v_auth,'VIEWER');
+ execute 'set local role authenticated';
+ v_result:=public.v4_expense_receipt_context();
+ if v_result->>'ok'<>'true' or v_result->>'can_write'<>'false' then raise exception 'Viewer context incorrect: %',v_result;end if;
+ v_result:=public.v4_manual_create_receipt(v_payload);
+ if v_result->>'code'<>'NAO_AUTORIZADO' then raise exception 'Viewer can write';end if;
+ v_result:=public.v4_save_general_cost_category(null,jsonb_build_object('name','Viewer invalid','kind','CUSTO_FIXO'));
+ if v_result->>'code'<>'NAO_AUTORIZADO' then raise exception 'Viewer can create category';end if;
+ if not exists(select 1 from public.v_monthly_expenses where receipt_id=v_receipt) then raise exception 'Viewer cannot read';end if;
+ execute 'reset role';
+ if exists(select 1 from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and c.relname in ('general_cost_categories','expense_receipts','whatsapp_inbound_messages') and not c.relrowsecurity) then raise exception 'RLS missing';end if;
+ perform set_config('sunshine.test_result','PASS: manual 50+50, service role without user, pending correction preserves message, exact sums, active targets, categories immediate, attachment idempotency, original costs, VIEWER read-only and agent privileges',true);
+end $test$;
+select current_setting('sunshine.test_result') as test_result;
+rollback;

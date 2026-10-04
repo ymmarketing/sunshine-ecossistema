@@ -4,6 +4,7 @@
     var el=api.el, esc=api.esc, money=api.money, cents=api.cents, rpc=api.rpc, state=api.state;
     var management=null, cash=null, expenses=[], destinations=[], birthdays=[], report=null;
     var attemptKey='sunshine.pendingEntry.v1';
+    var receiptModule=window.SunshineExpenseReceipts?window.SunshineExpenseReceipts(api):null;
     function localDay() { return new Intl.DateTimeFormat('en-CA',{timeZone:'America/Sao_Paulo',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date()); }
     function decimal(v) { return (Number(v||0)/100).toFixed(2).replace('.',','); }
     function percent(v) { return v==null?'Sem receita':(Number(v)/100).toLocaleString('pt-BR')+'%'; }
@@ -65,8 +66,9 @@
         var restore=ev.target.closest('[data-restore-void]');if(restore)restoreRecord(restore.dataset.restoreVoid);
         var receipt=ev.target.closest('[data-edit-receipt]');if(receipt)editReceipt(receipt.dataset.editReceipt);
       });
+      if(receiptModule)receiptModule.init();
     }
-    async function onPage(id) { if(id==='custos')await loadCosts();if(id==='faturamento')await loadManagement(); }
+    async function onPage(id) { if(id==='custos')await loadCosts();if(id==='faturamento')await loadManagement();if(receiptModule)await receiptModule.onPage(id); }
     async function loadCash() {
       try {
         cash=await rpc('v4_cash_availability',{p_start:el('dateStart').value,p_end:el('dateEnd').value});
@@ -78,9 +80,9 @@
       document.querySelectorAll('[data-payment-link]').forEach(function(b){b.onclick=function(){api.openPaymentDetail(b.dataset.paymentLink);};});
     }
     async function loadCosts() {
-      var args=period('cost'),loaded=await Promise.all([rpc('v4_finance_management',args),rpc('v4_cost_destinations')]),data=loaded[0];destinations=loaded[1]||[];expenses=data.expenses||[];
+      var args=period('cost'),receiptTotals=receiptModule?await receiptModule.loadCostTotals(args.p_start,args.p_end):null;var receiptAmount=receiptTotals?Math.round((Number(receiptTotals.confirmed_amount)+Number(receiptTotals.pending_amount))*100):0;var loaded=await Promise.all([rpc('v4_finance_management',args),rpc('v4_cost_destinations')]),data=loaded[0];destinations=loaded[1]||[];expenses=data.expenses||[];
       var active=expenses.filter(function(x){return x.status!=='CANCELLED';}),paid=active.filter(function(x){return x.status==='PAID';}).reduce(function(n,x){return n+Number(x.amount_cents);},0);
-      el('costMetrics').innerHTML=kpi('CUSTOS CADASTRADOS',active.reduce(function(n,x){return n+Number(x.amount_cents);},0),'Pela data da despesa','costs')+kpi('CADASTRADOS PAGOS',paid,'Neste filtro de despesas','costs')+kpi('A PAGAR',data.pendingCostsCents,'Não reduz o resultado até pagamento','costs');
+      el('costMetrics').innerHTML=kpi('CUSTOS CADASTRADOS',active.reduce(function(n,x){return n+Number(x.amount_cents);},0)+receiptAmount,'Pela data da despesa','costs')+kpi('CADASTRADOS PAGOS',paid,'Neste filtro de despesas','costs')+kpi('A PAGAR',data.pendingCostsCents,'Não reduz o resultado até pagamento','costs');
       el('expenseList').innerHTML=expenses.map(function(x){var rate=(x.allocations||[]).map(function(a){var d=destinations.find(function(d){return d.kind+':'+d.id===destinationKey(a);});return (d?d.label:'Destino cadastrado')+': '+money(a.amountCents);}).join(' · ');
         return row(x.description,x.amount_cents,api.dateBR(x.occurred_on)+' · '+x.category+' · '+({PAID:'Pago em '+api.dateBR(x.paid_on),PENDING:'A pagar',CANCELLED:'Excluído'}[x.status])+(rate?' · '+rate:x.scope==='FIXED'?' · Custo fixo':' · Destino pendente'),button('Editar','data-edit-expense="'+x.id+'"')+button(x.status==='CANCELLED'?'Restaurar como pendente':'Excluir','data-expense-status="'+(x.status==='CANCELLED'?'PENDING':'CANCELLED')+'" data-id="'+x.id+'"'));
       }).join('')||api.empty('Nenhum custo cadastrado neste período.');
@@ -206,6 +208,6 @@
       api.openDrawer('Confirmar gravação anterior','<p class="note">Uma tentativa anterior ficou sem confirmação. Confira e repita a mesma gravação para evitar duplicidade.</p><div class="summaryBox">'+attempt.args.p_payload.items.map(function(x){return row(x.participantName||'Beneficiário',x.amountCents,x.serviceName);}).join('')+'</div><div id="entryMsg"></div><button id="retryPendingEntry" class="primary">Confirmar novamente</button>');
       el('retryPendingEntry').onclick=guarded('entryMsg',async function(){await saveEntry(null,null);});return true;
     }
-    return {localDay:localDay,init:init,onPage:onPage,loadCash:loadCash,loadBirthdays:loadBirthdays,editItem:editItem,paymentActions:paymentActions,saveEntry:saveEntry,recoverEntry:recoverEntry,pendingAttempt:pendingAttempt};
+    return {receiptModule:receiptModule,loadWorkCosts:receiptModule?receiptModule.loadWorkCosts:async function(){},localDay:localDay,init:init,onPage:onPage,loadCash:loadCash,loadBirthdays:loadBirthdays,editItem:editItem,paymentActions:paymentActions,saveEntry:saveEntry,recoverEntry:recoverEntry,pendingAttempt:pendingAttempt};
   };
 })();
