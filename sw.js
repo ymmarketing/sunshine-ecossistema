@@ -1,4 +1,4 @@
-const CACHE_NAME='sunshine-v3.65';
+const CACHE_NAME='sunshine-finance-20261008';
 
 self.addEventListener('install',event=>{ self.skipWaiting(); });
 self.addEventListener('activate',event=>{
