@@ -12,7 +12,7 @@ function boot(handler=async()=>null) {
   w.eval(fs.readFileSync(path.join(root,'assets/recurring-costs.js'),'utf8'));
   w.eval(fs.readFileSync(path.join(root,'assets/finance-operations.js'),'utf8'));
   const inline=[...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(x=>x[1]).join('\n');
-  w.eval(inline.replace('\ninit();','\nwindow.__testing={get operations(){return operations},state:state,openEntry:openEntry,loadPeople:loadPeople,loadPersonDetail:loadPersonDetail,renderPersonDetail:renderPersonDetail,openDebtRegularization:openDebtRegularization,loadFinance:loadFinance};init();'));
+  w.eval(inline.replace('\ninit();','\nwindow.__testing={get operations(){return operations},state:state,openEntry:openEntry,entryCategoryCode:entryCategoryCode,loadPeople:loadPeople,loadPersonDetail:loadPersonDetail,renderPersonDetail:renderPersonDetail,openDebtRegularization:openDebtRegularization,loadFinance:loadFinance};init();'));
   return {w,dom,calls,api:w.__testing,close:()=>w.close()};
 }
 test('new modules mount, navigation and brand return to Home, sex is optional',()=>{
@@ -229,5 +229,18 @@ test('receipt categories open a simple list that closes the category total',asyn
     d.querySelector('#financeEvidenceList [data-finance-category="CONSULTA"]').click();
     assert.match(d.getElementById('financeEvidenceList').textContent,/Cliente da consulta/);
     assert(!d.getElementById('financeEvidenceList').textContent.includes('Cliente A'));
+  }finally{app.close();}
+});
+
+test('manual entry offers Premium and selecting its service selects the right category',()=>{
+  const app=boot();
+  try{
+    app.api.state.services=[{service_id:'premium',name:'Trabalho Coletivo Premium',category:'TRABALHO_COLETIVO_PREMIUM',default_price_cents:30000},{service_id:'private',name:'Trabalho Particular',category:'TRABALHO_PARTICULAR'}];
+    app.api.openEntry();const d=app.w.document,category=d.getElementById('entryCategory');
+    assert([...category.options].some(x=>x.value==='Trabalho coletivo premium'));
+    category.value='Trabalho particular';d.getElementById('entryService').value='premium';
+    d.getElementById('entryService').dispatchEvent(new app.w.Event('change',{bubbles:true}));
+    assert.equal(category.value,'Trabalho coletivo premium');
+    assert.equal(app.api.entryCategoryCode(),'TRABALHO_COLETIVO_PREMIUM');
   }finally{app.close();}
 });
