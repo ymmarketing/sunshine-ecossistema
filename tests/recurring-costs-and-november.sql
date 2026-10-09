@@ -58,7 +58,7 @@ begin
  select id into v_other from sunshine_v4.team_members where active and lower(full_name)='lourdes';
  select id into v_service from sunshine_v4.services where coalesce(metadata->>'commission_mode','')<>'LOURDES_100' limit 1;
  v_person:=public.v4_api_save_person(null,jsonb_build_object('fullName','VALIDAÇÃO TEMPORÁRIA - não manter','birthDate','2000-01-01','status','ACTIVE'));
- -- Each recipient can be responsible; categories keep their current reserve until another approval.
+ -- Each recipient can be responsible; consultations/questions have no reserve under the approved exemption.
  for v_case in 0..5 loop
   v_at:=case when v_case=0 then '2026-11-01T02:59:59Z' else '2026-11-01T03:00:00Z' end;
   select id into v_member from sunshine_v4.team_members where active and lower(full_name)=case when v_case in (2,4) then 'lourdes' when v_case in (3,5) then 'rosely' else 'yasmin' end;
@@ -68,8 +68,8 @@ begin
   select id into v_allocation from sunshine_v4.payment_allocations where payment_id=(v_result->>'paymentId')::uuid;
   select sum(amount_cents),sum(amount_cents) filter(where beneficiary_member_id=v_member),min(amount_cents) filter(where beneficiary_member_id<>v_member)
    into v_total,v_responsible_amount,v_other_amount from sunshine_v4.commission_entries where allocation_id=v_allocation;
-  if v_total<>70000 or v_responsible_amount<>(case when v_case=0 then 49000 else 40000 end) or v_other_amount<>(case when v_case=0 then 10500 else 15000 end) then raise exception 'Receipt rule, case %: %, %, %',v_case,v_total,v_responsible_amount,v_other_amount;end if;
-  if v_total+30000<>100000 then raise exception 'Gross split did not close';end if;
+  if v_total<>(case when v_case in(4,5) then 100000 else 70000 end) or v_responsible_amount<>(case when v_case=0 then 49000 when v_case in(4,5) then 70000 else 40000 end) or v_other_amount<>(case when v_case=0 then 10500 else 15000 end) then raise exception 'Receipt rule, case %: %, %, %',v_case,v_total,v_responsible_amount,v_other_amount;end if;
+  if v_total+(case when v_case in(4,5) then 0 else 30000 end)<>100000 then raise exception 'Gross split did not close';end if;
   -- A paid commission must not enter the margin or allow its base to be silently rebuilt.
   v_before:=public.v4_finance_management('2026-11-01','2026-11-30',2026);
   insert into sunshine_v4.commission_payment_entries(batch_key,commission_table,commission_id,recipient_name,amount_cents,paid_on,created_by)

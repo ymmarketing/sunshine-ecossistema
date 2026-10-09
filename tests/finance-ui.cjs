@@ -9,6 +9,7 @@ function boot(handler=async()=>null) {
   const dom=new JSDOM(html.replace(/<script[\s\S]*?<\/script>/g,''),{url:'https://sunshine.ymnegocios.com.br/',runScripts:'outside-only'});
   const w=dom.window,calls=[];w.scrollTo=()=>{};w.HTMLElement.prototype.scrollIntoView=()=>{};w.confirm=()=>true;
   w.supabase={createClient:()=>({auth:{getSession:async()=>({data:{session:null}}),signOut:async()=>{}},rpc:async(name,args)=>{calls.push({name,args});try{return {data:await handler(name,args),error:null}}catch(error){return {data:null,error}}}})};
+  w.eval(fs.readFileSync(path.join(root,'assets/recurring-costs.js'),'utf8'));
   w.eval(fs.readFileSync(path.join(root,'assets/finance-operations.js'),'utf8'));
   const inline=[...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(x=>x[1]).join('\n');
   w.eval(inline.replace('\ninit();','\nwindow.__testing={get operations(){return operations},state:state,openEntry:openEntry,loadPeople:loadPeople,loadPersonDetail:loadPersonDetail,renderPersonDetail:renderPersonDetail,openDebtRegularization:openDebtRegularization,loadFinance:loadFinance};init();'));
@@ -175,5 +176,58 @@ test('receipt reserve card uses backend amount and opens per-entry evidence',asy
   try{
     await app.api.loadFinance();const card=app.w.document.querySelector('[data-finance-detail="reserve"]');assert(card);assert(card.textContent.includes('RESERVA PARA CUSTOS'));assert.match(card.textContent,/1\.579,50/);
     card.click();const list=app.w.document.getElementById('financeEvidenceList');assert(list.textContent.includes('Limpeza'));assert(list.textContent.includes('30%'));assert.match(list.textContent,/66,00/);assert.equal(list.querySelector('script'),null);
+  }finally{app.close();}
+});
+
+
+test('consultation exemption is shown as complete gross distributions',async()=>{
+  const policies=[{valid_from:'2026-10-08',reserve_bp:3000,commission_bp:1050,responsible_bp:4900,consultation_reserve_status:'EXEMPT'},{valid_from:'2026-11-01',reserve_bp:3000,commission_bp:1500,responsible_bp:4000,consultation_reserve_status:'EXEMPT'}];
+  const app=boot(async(name)=>name==='v4_receipt_distribution_policies'?policies:name==='v4_finance_management'?{cash:{pendingTransferCents:0},annual:[],profile:{peopleCount:0,participations:0,ageGroups:[],sexGroups:[],serviceGroups:[],topPeople:[]},categoryBreakdown:[],voids:[]}:[]);
+  try{
+    app.api.state.me={permissions:['dashboard.read','record.update']};
+    await app.api.operations.onPage('faturamento');
+    const rows=[...app.w.document.querySelectorAll('#distributionPolicies tbody tr')];assert.equal(rows.length,4);
+    const cells=rows.map(r=>[...r.querySelectorAll('td')].map(c=>c.childNodes[0].textContent));
+    assert.deepEqual(cells[1].slice(1),['0%','10,5%','10,5%','79%','100%']);
+    assert.deepEqual(cells[3].slice(1),['0%','15%','15%','70%','100%']);
+    assert.deepEqual(cells[0].slice(1),['30%','10,5%','10,5%','49%','100%']);
+  }finally{app.close();}
+});
+
+test('editing a consultation uses the receipt date and the integral commission base',()=>{
+  for(const [paidAt,expectedOwner,expectedOther]of [['2026-10-08T03:00:00Z','79,00','10,50'],['2026-11-01T03:00:00Z','70,00','15,00']]){
+    const app=boot();
+    try{
+      app.api.state.team=[{member_id:'y',full_name:'Yasmin'},{member_id:'l',full_name:'Lourdes'},{member_id:'r',full_name:'Rosely'}];
+      app.api.state.paymentDetails={p:{payment:{paidAt},allocations:[{itemId:'i',serviceCategory:'CONSULTA',responsibleMemberId:'y',totalCents:100000}]}};
+      app.api.operations.editItem('p','i');
+      assert.equal(app.w.document.getElementById('splitCost').value,'0,00');
+      assert.equal(app.w.document.getElementById('splitCost').readOnly,true);
+      assert.equal(app.w.document.getElementById('splity').value,expectedOwner);
+      assert.equal(app.w.document.getElementById('splitl').value,expectedOther);
+      assert.equal(app.w.document.getElementById('splitr').value,expectedOther);
+    }finally{app.close();}
+  }
+});
+test('receipt categories open a simple list that closes the category total',async()=>{
+  const app=boot(async(name)=>name==='v4_finance_dashboard_filtered'?{
+    salesCents:1022500,categories:{TRABALHO_PARTICULAR:962500,CONSULTA:60000},
+    salesEvidence:[
+      {category:'TRABALHO_PARTICULAR',personName:'Cliente A',serviceName:'Trabalho particular',eventName:'Limpeza e blindagem',responsibleName:'Rosely',eventDate:'2026-10-07',amountCents:900000},
+      {category:'TRABALHO_PARTICULAR',personName:'Cliente <script>',serviceName:'Trabalho particular',workTitle:'Proteção',responsibleName:'Lourdes',eventDate:'2026-10-06',amountCents:62500},
+      {category:'CONSULTA',personName:'Cliente da consulta',serviceName:'Consulta',responsibleName:'Yasmin',eventDate:'2026-10-05',amountCents:60000}
+    ]
+  }:[]);
+  try{
+    await app.api.loadFinance();
+    const d=app.w.document;d.querySelector('[data-finance-category="TRABALHO_PARTICULAR"]').click();
+    const list=d.getElementById('financeEvidenceList');
+    assert.match(d.getElementById('financeEvidenceTitle').textContent,/Trabalho particular.*recebimentos/);
+    assert.match(list.textContent,/9\.625,00/);assert.match(list.textContent,/Cliente A/);assert.match(list.textContent,/Limpeza e blindagem/);assert.match(list.textContent,/Responsável: Rosely/);assert.match(list.textContent,/Responsável: Lourdes/);
+    assert(!list.textContent.includes('Cliente da consulta'));assert.equal(list.querySelector('script'),null);assert.equal(list.querySelectorAll('.row').length,2);
+    list.querySelector('[data-finance-detail="categories"]').click();
+    d.querySelector('#financeEvidenceList [data-finance-category="CONSULTA"]').click();
+    assert.match(d.getElementById('financeEvidenceList').textContent,/Cliente da consulta/);
+    assert(!d.getElementById('financeEvidenceList').textContent.includes('Cliente A'));
   }finally{app.close();}
 });
