@@ -244,3 +244,30 @@ test('manual entry offers Premium and selecting its service selects the right ca
     assert.equal(app.api.entryCategoryCode(),'TRABALHO_COLETIVO_PREMIUM');
   }finally{app.close();}
 });
+
+test('private work descriptions stay with each person and reach the saved service name',async()=>{
+  const app=boot(async(name,args)=>name==='v4_api_resolve_person'?args.p_person_id:[]),w=app.w,d=w.document;
+  try{
+    app.api.state.services=[{service_id:'private',name:'Trabalho Particular',category:'TRABALHO_PARTICULAR'}];
+    app.api.openEntry();
+    d.getElementById('entryService').value='private';
+    d.getElementById('entryService').dispatchEvent(new w.Event('change',{bubbles:true}));
+    assert.equal(app.api.entryCategoryCode(),'TRABALHO_PARTICULAR');
+    let description=d.querySelector('.partPrivateWork');
+    assert(description.required);assert(!description.closest('.privateOnly').classList.contains('hidden'));
+    description.value='Limpeza espiritual';
+    d.getElementById('qty').value='2';d.getElementById('qty').dispatchEvent(new w.Event('change',{bubbles:true}));
+    assert.equal(d.querySelectorAll('.partPrivateWork')[0].value,'Limpeza espiritual');
+    assert.equal(d.querySelectorAll('.partPrivateWork')[1].value,'');
+    const nodes=[...d.querySelectorAll('.participant')];
+    nodes.forEach((n,i)=>{n.querySelector('.personIdInput').value='person-'+i;n.querySelector('.personNameInput').value='Pessoa '+i;n.querySelector('.partBirth').value='1990-01-01';n.querySelector('.partAmount').value='1200,00';});
+    const responsible=d.getElementById('entryResponsible');responsible.insertAdjacentHTML('beforeend','<option value="member">Responsável</option>');responsible.value='member';
+    let saved;app.api.operations.saveEntry=async p=>{saved=p;};
+    await d.getElementById('entryForm').onsubmit({preventDefault(){}});
+    assert.equal(saved,undefined);assert.match(d.getElementById('entryMsg').textContent,/cada pessoa/);
+    d.querySelectorAll('.partPrivateWork')[1].value='Proteção <especial>';
+    await d.getElementById('entryForm').onsubmit({preventDefault(){}});
+    assert(saved,d.getElementById('entryMsg').textContent);assert.equal(saved.items[0].serviceName,'Limpeza espiritual');assert.equal(saved.items[1].serviceName,'Proteção <especial>');
+    assert(saved.items.every(x=>x.serviceCategory==='TRABALHO_PARTICULAR'&&x.serviceId==='private'));
+  }finally{app.close();}
+});
