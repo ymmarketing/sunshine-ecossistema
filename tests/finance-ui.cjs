@@ -11,6 +11,7 @@ function boot(handler=async()=>null) {
   w.supabase={createClient:()=>({auth:{getSession:async()=>({data:{session:null}}),signOut:async()=>{}},rpc:async(name,args)=>{calls.push({name,args});try{return {data:await handler(name,args),error:null}}catch(error){return {data:null,error}}}})};
   w.eval(fs.readFileSync(path.join(root,'assets/recurring-costs.js'),'utf8'));
   w.eval(fs.readFileSync(path.join(root,'assets/finance-operations.js'),'utf8'));
+  w.eval(fs.readFileSync(path.join(root,'assets/payment-matching.js'),'utf8'));
   const inline=[...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(x=>x[1]).join('\n');
   w.eval(inline.replace('\ninit();','\nwindow.__testing={get operations(){return operations},state:state,openEntry:openEntry,entryCategoryCode:entryCategoryCode,loadPeople:loadPeople,loadPersonDetail:loadPersonDetail,renderPersonDetail:renderPersonDetail,openDebtRegularization:openDebtRegularization,loadFinance:loadFinance};init();'));
   return {w,dom,calls,api:w.__testing,close:()=>w.close()};
@@ -153,8 +154,8 @@ test('regularization requires a responsible and sends it with the original oblig
   for(const mode of ['MANUAL','EXISTING','ASAAS']){
     const writes=[];const app=boot(async(name,args)=>{
       if(name==='v4_team_members')return team;
-      if(mode==='EXISTING'&&name==='v4_recent_payments')return [{payment_id:'received-1',payer_person_id:'person-1',signed_unallocated_cents:22000}];
-      if(mode==='ASAAS'&&name==='v4_asaas_pending')return [{entry_id:'asaas-1',matched_person_id:'person-1',amount_cents:22000}];
+      if(mode==='EXISTING'&&name==='v4_unassociated_receipts')return {payments:[{payment_id:'received-1',payer_person_id:'person-1',signed_unallocated_cents:22000}]};
+      if(mode==='ASAAS'&&name==='v4_unassociated_receipts')return {asaas:[{entry_id:'asaas-1',matched_person_id:'person-1',amount_cents:22000}]};
       if(name==='v4_api_regularize_obligation'){writes.push(args);throw new Error('stop before refresh');}
       return [];
     });
@@ -270,4 +271,29 @@ test('private work descriptions stay with each person and reach the saved servic
     assert(saved,d.getElementById('entryMsg').textContent);assert.equal(saved.items[0].serviceName,'Limpeza espiritual');assert.equal(saved.items[1].serviceName,'Proteção <especial>');
     assert(saved.items.every(x=>x.serviceCategory==='TRABALHO_PARTICULAR'&&x.serviceId==='private'));
   }finally{app.close();}
+});
+
+test('payment matching ranks existing debts and permits partial/third-party association without a new sale',async()=>{
+ const debts=[{obligationId:'other',personId:'third-party',personName:'Outra pessoa',eventName:'Outro trabalho',pendingCents:20000}, {obligationId:'mine',personId:'person-1',personName:'Cliente',eventName:'Sete Saias',pendingCents:7000,responsibleMemberId:'r',soldAt:'2026-09-10'}];
+ const writes=[];const app=boot(async(name,args)=>{if(name==='v4_payment_debt_candidates')return debts;if(name==='v4_api_match_payments_to_debt'){writes.push(args.p_payload);throw Object.assign(new Error('teste'),{code:'P0001'});}return [];});
+ try{
+  app.api.state.team=[{member_id:'r',full_name:'Rosely'}];app.api.openEntry({kind:'EXISTING',paymentId:'pix-1',payerPersonId:'person-1',amountCents:5000});
+  await new Promise(r=>setTimeout(r,0));const e=id=>app.w.document.getElementById(id),form=e('entryForm');
+  assert.equal(e('associationDestination').value,'DEBT');assert.equal(e('debtChoice').value,'');assert.equal(e('newServiceFields').disabled,true);assert.equal(e('debtChoice').options[1].value,'mine');
+  e('debtChoice').value='mine';e('debtChoice').dispatchEvent(new app.w.Event('change'));assert.equal(e('debtAmount').value,'50,00');assert(e('debtPreview').textContent.includes('20,00'));
+  await form.onsubmit({preventDefault(){}});assert.equal(writes[0].obligationId,'mine');assert.equal(writes[0].amountCents,5000);assert.equal(writes[0].payments[0].id,'pix-1');
+  e('debtChoice').value='other';e('debtChoice').dispatchEvent(new app.w.Event('change'));e('debtResponsible').value='r';await form.onsubmit({preventDefault(){}});assert.equal(writes[1].obligationId,'other');
+  e('associationDestination').value='NEW';e('associationDestination').dispatchEvent(new app.w.Event('change'));assert.equal(e('newServiceFields').disabled,false);assert.equal(e('existingDebtFields').disabled,true);
+  assert(!app.calls.some(c=>c.name.includes('register_manual')||c.name.includes('associate_existing_payment_operational')));
+ }finally{app.close();}
+});
+test('uncertain debt association survives reopening and retries its exact committed request',async()=>{
+ const requests=[];const app=boot(async(name,args)=>{if(name==='v4_payment_debt_candidates')return [{obligationId:'debt',personId:'person',personName:'Cliente',eventName:'Limpeza',pendingCents:10000,responsibleMemberId:'r'}];if(name==='v4_api_match_payments_to_debt'){requests.push(args.p_payload);throw new Error('Connection lost');}return [];});
+ try{
+  app.api.state.team=[{member_id:'r',full_name:'Rosely'}];app.api.openEntry({kind:'ASAAS',entryId:'asaas',amountCents:10000});await new Promise(r=>setTimeout(r,0));
+  let e=id=>app.w.document.getElementById(id);e('debtChoice').value='debt';e('debtChoice').dispatchEvent(new app.w.Event('change'));await e('entryForm').onsubmit({preventDefault(){}});
+  assert(app.w.sessionStorage.getItem('sunshine.debtMatch.v1'));assert(e('associationDestination').disabled);
+  app.api.openEntry({kind:'EXISTING',paymentId:'different',amountCents:20000});await new Promise(r=>setTimeout(r,0));await e('entryForm').onsubmit({preventDefault(){}});
+  assert.equal(requests.length,2);assert.equal(JSON.stringify(requests[0]),JSON.stringify(requests[1]));
+ }finally{app.close();}
 });
