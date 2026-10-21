@@ -297,3 +297,15 @@ test('uncertain debt association survives reopening and retries its exact commit
   assert.equal(requests.length,2);assert.equal(JSON.stringify(requests[0]),JSON.stringify(requests[1]));
  }finally{app.close();}
 });
+
+test('new service warns about a debt under a verified related person record',async()=>{
+ const app=boot(async name=>name==='v4_payment_debt_candidates'?[{obligationId:'original-debt',personId:'canonical-person',identityPersonIds:['canonical-person','other-record'],personName:'Cliente',eventName:'Trabalho original',pendingCents:20000,responsibleMemberId:'r'}]:[]);
+ try{
+  app.api.state.team=[{member_id:'r',full_name:'Rosely'}];app.w.confirm=()=>false;
+  app.api.openEntry({kind:'EXISTING',paymentId:'receipt',payerPersonId:'other-record',amountCents:20000});await new Promise(r=>setTimeout(r,0));
+  const e=id=>app.w.document.getElementById(id);assert(e('debtChoice').options[1].textContent.includes('Desta pessoa'));
+  e('associationDestination').value='NEW';e('associationDestination').dispatchEvent(new app.w.Event('change'));
+  await e('entryForm').onsubmit({preventDefault(){}});assert.equal(e('associationDestination').value,'DEBT');
+  assert(!app.calls.some(c=>c.name.includes('associate_existing_payment_operational')));
+ }finally{app.close();}
+});

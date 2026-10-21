@@ -1,6 +1,14 @@
 (function(global){
  'use strict';
  function normalize(s){return String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();}
+ function related(d,id){return !!id&&(d.personId===id||d.customerPersonId===id||(d.identityPersonIds||[]).includes(id));}
+ function confirmNewService(api,debts,context){
+  var ids=Array.from(document.querySelectorAll('#participants .personIdInput')).map(function(x){return x.value;}).filter(Boolean);
+  if(!ids.length&&context&&context.payerPersonId)ids.push(context.payerPersonId);
+  var matches=(debts||[]).filter(function(d){return ids.some(function(id){return related(d,id);});});
+  if(!matches.length)return true;
+  return global.confirm('Já existe pendência para esta pessoa: '+matches.slice(0,3).map(function(d){return d.eventName+' ('+api.money(d.pendingCents)+')';}).join('; ')+'. Para dar baixa, use Pendência existente. Deseja cadastrar um serviço novo mesmo assim?');
+ }
  function mount(api,context){
   var form=document.getElementById('entryForm'),saved=null;try{saved=JSON.parse(sessionStorage.getItem('sunshine.debtMatch.v1')||'null');}catch(_){}
   if(saved)context=saved.context;
@@ -8,7 +16,7 @@
   if(!context){
    var choose=document.createElement('button');choose.type='button';choose.className='secondary';choose.style.cssText='width:100%;margin-bottom:12px';choose.textContent='Este pagamento é de uma pendência existente';
    choose.onclick=async function(){choose.disabled=true;try{var rows=await api.rpc('v4_payment_debt_candidates',{});api.openDrawer('Escolher pendência existente','<form id="manualDebtChoiceForm"><div class="field"><label for="manualDebtChoice">Pessoa e pendência</label><select id="manualDebtChoice" required><option value="">Selecione</option>'+rows.map(function(d){return '<option value="'+api.esc(d.obligationId)+'">'+api.esc(d.personName+' · '+d.eventName+' · '+api.dateBR(d.soldAt)+' · falta '+api.money(d.pendingCents))+'</option>';}).join('')+'</select></div><button class="primary" type="submit">Continuar com esta pendência</button></form>');document.getElementById('manualDebtChoiceForm').onsubmit=function(ev){ev.preventDefault();var id=document.getElementById('manualDebtChoice').value,d=rows.find(function(x){return x.obligationId===id;});if(d)api.openDebtRegularization({dataset:{obligationId:d.obligationId,personId:d.personId,personName:d.personName,serviceName:d.eventName,pendingCents:String(d.pendingCents),responsibleId:d.responsibleMemberId||''}});};}catch(e){api.toast(e.message);}finally{choose.disabled=false;}};
-   form.prepend(choose);return;
+   var manualSubmit=form.onsubmit;form.onsubmit=async function(ev){ev.preventDefault();try{var debts=await api.rpc('v4_payment_debt_candidates',{});if(!confirmNewService(api,debts,null)){choose.click();return;}return manualSubmit.call(form,ev);}catch(e){api.toast('Não foi possível conferir as pendências: '+e.message);}};form.prepend(choose);return;
   }
   var el=function(id){return document.getElementById(id);},esc=api.esc,money=api.money;
   var originalSubmit=form.onsubmit,old=document.createElement('fieldset');old.id='newServiceFields';old.style.cssText='border:0;padding:0;margin:0;min-width:0';
@@ -17,7 +25,7 @@
   var debts=[],key='debt-'+crypto.randomUUID(),frozen=saved&&saved.payload||null,finished=false,loading=true;
   if(frozen){el('associationDestination').disabled=true;el('saveDebtMatch').textContent='Conferir confirmação';el('debtMatchMsg').textContent='Há uma confirmação aguardando conferência. Clique para verificar o resultado sem repetir o abatimento.';}
   function chosen(){return debts.find(function(x){return x.obligationId===el('debtChoice').value;});}
-  function samePerson(d){return !!context.payerPersonId&&(d.personId===context.payerPersonId||d.customerPersonId===context.payerPersonId)||!!context.payerName&&normalize(d.personName)===normalize(context.payerName);}
+  function samePerson(d){return related(d,context.payerPersonId)||!!context.payerName&&normalize(d.personName)===normalize(context.payerName);}
   function exact(d){return Number(d.pendingCents)===Number(context.amountCents);}
   function label(d){return (samePerson(d)?'Desta pessoa · ':'')+(exact(d)?'Valor coincide · ':'')+d.personName+' · '+d.eventName+' · '+api.dateBR(d.soldAt)+(d.referenceMonth?' · '+String(d.referenceMonth).slice(0,7):'')+' · falta '+money(d.pendingCents);}
   function preview(){var d=chosen(),n=api.cents(el('debtAmount').value);el('debtPreview').textContent=d?'Pendente: '+money(d.pendingCents)+' · Abater: '+money(n)+' · Restará na dívida: '+money(Math.max(0,d.pendingCents-n))+' · Pagamento ainda disponível: '+money(Math.max(0,context.amountCents-n)):'Selecione uma pendência para conferir o abatimento.';}
@@ -33,7 +41,7 @@
   el('associationDestination').onchange=mode;el('debtSearch').oninput=render;el('debtChoice').onchange=selectDebt;el('debtAmount').oninput=preview;mode();
   api.rpc('v4_payment_debt_candidates',{}).then(function(rows){if(!form.isConnected)return;debts=rows||[];debts.sort(function(a,b){return Number(samePerson(b))-Number(samePerson(a))||Number(exact(b))-Number(exact(a))||String(a.soldAt||'').localeCompare(String(b.soldAt||''));});loading=false;render();if(!debts.length)el('debtMatchMsg').textContent='Nenhuma pendência em aberto. Selecione Serviço novo para cadastrar.';}).catch(function(e){if(form.isConnected)el('debtMatchMsg').textContent='Não foi possível consultar pendências: '+e.message;});
   form.onsubmit=async function(ev){
-   if(el('associationDestination').value==='NEW'&&!frozen)return originalSubmit.call(form,ev);
+   if(el('associationDestination').value==='NEW'&&!frozen){if(loading){ev.preventDefault();api.toast('Aguarde a consulta das pendências antes de criar outro serviço.');return;}if(!confirmNewService(api,debts,context)){ev.preventDefault();el('associationDestination').value='DEBT';mode();return;}return originalSubmit.call(form,ev);}
    ev.preventDefault();var msg=el('debtMatchMsg'),btn=el('saveDebtMatch');if(btn.disabled||finished)return;msg.textContent='';
    try{
     if(!frozen){
