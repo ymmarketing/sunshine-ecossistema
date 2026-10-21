@@ -8,3 +8,5 @@ for(const [i,script] of scripts.entries())new vm.Script(script,{filename:'index-
 new vm.Script(fs.readFileSync(path.join(root,'assets/finance-operations.js'),'utf8'),{filename:'finance-operations.js'});
 new vm.Script(fs.readFileSync(path.join(root,'assets/expense-receipts.js'),'utf8'),{filename:'expense-receipts.js'});
 console.log('JavaScript syntax OK');
+
+new vm.Script(fs.readFileSync(path.join(root,'assets/payment-matching.js'),'utf8'),{filename:'payment-matching.js'});
