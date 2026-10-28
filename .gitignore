@@ -15,3 +15,4 @@ assets/config.js
 .DS_Store
 Thumbs.db
 supabase/.temp/
+.test-runtime/

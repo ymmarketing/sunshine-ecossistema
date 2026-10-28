@@ -19,4 +19,4 @@ jobs:
       - name: Install isolated test dependency
         run: npm install --prefix "$RUNNER_TEMP/sunshine-tests" jsdom@26.1.0 --no-audit --no-fund
       - name: Test finance interface and uncertain saves
-        run: NODE_PATH="$RUNNER_TEMP/sunshine-tests/node_modules" node --test tests/finance-ui.cjs
+        run: NODE_PATH="$RUNNER_TEMP/sunshine-tests/node_modules" node --test tests/finance-ui.cjs tests/expense-receipts-ui.cjs tests/agent-alerts-ui.cjs

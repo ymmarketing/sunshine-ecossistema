@@ -10,3 +10,5 @@ new vm.Script(fs.readFileSync(path.join(root,'assets/expense-receipts.js'),'utf8
 console.log('JavaScript syntax OK');
 
 new vm.Script(fs.readFileSync(path.join(root,'assets/payment-matching.js'),'utf8'),{filename:'payment-matching.js'});
+
+new vm.Script(fs.readFileSync(path.join(root,'assets/agent-alerts.js'),'utf8'),{filename:'agent-alerts.js'});

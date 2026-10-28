@@ -2,6 +2,7 @@
   'use strict';
   window.SunshineOperations = function (api) {
     var el=api.el, esc=api.esc, money=api.money, cents=api.cents, rpc=api.rpc, state=api.state;
+    var agentModule=window.SunshineAgentAlerts?window.SunshineAgentAlerts(api):null;
     var management=null, cash=null, expenses=[], destinations=[], birthdays=[], report=null;
     var attemptKey='sunshine.pendingEntry.v1';
     var receiptModule=window.SunshineExpenseReceipts?window.SunshineExpenseReceipts(api):null;
@@ -68,10 +69,10 @@
         var restore=ev.target.closest('[data-restore-void]');if(restore)restoreRecord(restore.dataset.restoreVoid);
         var receipt=ev.target.closest('[data-edit-receipt]');if(receipt)editReceipt(receipt.dataset.editReceipt);
       });
-      if(receiptModule)receiptModule.init();
+      if(receiptModule)receiptModule.init();if(agentModule)agentModule.init();
       if(recurringModule)recurringModule.init();
     }
-    async function onPage(id) { if(id==='custos')await loadCosts();if(id==='faturamento')await loadManagement();if(receiptModule)await receiptModule.onPage(id); }
+    async function onPage(id) { if(agentModule)await agentModule.onPage(id); if(id==='custos')await loadCosts();if(id==='faturamento')await loadManagement();if(receiptModule)await receiptModule.onPage(id); }
     async function loadCash() {
       try {
         cash=await rpc('v4_cash_availability',{p_start:el('dateStart').value,p_end:el('dateEnd').value});

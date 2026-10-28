@@ -1,0 +1,169 @@
+{
+  "finance": {
+    "ok": true,
+    "costs": {
+      "by_work": [],
+      "work_cents": 0,
+      "fixed_cents": 0,
+      "house_cents": 0,
+      "total_cents": 0,
+      "general_allocation_cents": 0
+    },
+    "end_date": "2026-10-14",
+    "start_date": "2026-10-14",
+    "commissions": [
+      {
+        "name": "L***",
+        "due_cents": 0,
+        "paid_cents": 67343
+      },
+      {
+        "name": "R***",
+        "due_cents": 0,
+        "paid_cents": 52467
+      },
+      {
+        "name": "Y***",
+        "due_cents": 0,
+        "paid_cents": 21143
+      }
+    ],
+    "revenue_cents": 201361,
+    "texto_fechamento": "",
+    "house_reserve_cents": 60408,
+    "revenue_by_category": [
+      {
+        "category": "TRABALHO_PARTICULAR",
+        "amount_cents": 120000
+      },
+      {
+        "category": "AGRADO_COLETIVO",
+        "amount_cents": 81361
+      }
+    ],
+    "commissions_due_cents": 0,
+    "commissions_paid_cents": 140953,
+    "contribution_margin_cents": 201361,
+    "uncategorized_revenue_cents": 0
+  },
+  "register": {
+    "ok": true,
+    "date": "2026-10-28",
+    "person_id": "6f79da4f-1210-40b5-af26-d80a6f0f5a63",
+    "alert_type": "MEMBRO_CASA_ATRASADO",
+    "assigned_to": "33dc0160-9222-4ef6-96f8-1c9dc02b7530",
+    "completed_at": "2026-10-28T20:59:29.573304+00:00",
+    "follow_up_id": "822a2572-f7c2-4991-9ec1-f87f3f2b66dc",
+    "already_registered": false
+  },
+  "birthdays": {
+    "ok": true,
+    "date": "2026-10-28",
+    "people": [
+      {
+        "age": 37,
+        "phone": "+55***********",
+        "full_name": "B***",
+        "person_id": "9e042d57-677e-4fa1-9c1d-f1af945600a0",
+        "birth_date": "1989-10-28",
+        "first_name": "B***",
+        "phone_valid": false
+      },
+      {
+        "age": 49,
+        "phone": "+55***********",
+        "full_name": "R***",
+        "person_id": "28d38826-5afe-4f0b-8223-9af87a27e10a",
+        "birth_date": "1977-10-28",
+        "first_name": "R***",
+        "phone_valid": false
+      }
+    ]
+  },
+  "relationship": {
+    "ok": true,
+    "date": "2026-10-28",
+    "alerts": [
+      {
+        "fact": "Fez consulta ou pergunta em 01/09/2026 e não comprou trabalho depois.",
+        "phone": "+************",
+        "full_name": "M***",
+        "person_id": "0112ae45-870c-4e2e-8cbd-aa52a5659312",
+        "alert_type": "CONSULTA_SEM_TRABALHO",
+        "phone_valid": true,
+        "last_purchase_at": "2026-09-01",
+        "last_service_name": "Meia Hora Baralho Cigano 2026"
+      },
+      {
+        "fact": "Fez 3 compras; a última foi em 04/08/2026.",
+        "phone": null,
+        "full_name": "E***",
+        "person_id": "1951f464-6886-4e1c-a75a-0baeb5e9d352",
+        "alert_type": "ESFRIANDO",
+        "phone_valid": false,
+        "last_purchase_at": "2026-08-04",
+        "last_service_name": "Trabalho Particular"
+      },
+      {
+        "fact": "Não compra desde 24/03/2026.",
+        "phone": "+************",
+        "full_name": "L***",
+        "person_id": "0f5ee834-3484-4de6-8e59-6e2d28438bac",
+        "alert_type": "INATIVA",
+        "phone_valid": true,
+        "last_purchase_at": "2026-03-24",
+        "last_service_name": "Trabalho Particular"
+      },
+      {
+        "fact": "Cadastro em 28/08/2026 sem nenhuma compra.",
+        "phone": "+************",
+        "full_name": "D***",
+        "person_id": "01e59de0-2390-49ab-bd94-28a937cbfae6",
+        "alert_type": "LEAD_SEM_COMPRA",
+        "phone_valid": true,
+        "last_purchase_at": null,
+        "last_service_name": null
+      },
+      {
+        "fact": "Mensalidade com vencimento em 10/04/2026 permanece com saldo pendente.",
+        "phone": "+************",
+        "full_name": "G***",
+        "person_id": "00db64d2-8211-4630-8ed5-b13a5d4865fa",
+        "alert_type": "MEMBRO_CASA_ATRASADO",
+        "phone_valid": false,
+        "last_purchase_at": "2026-07-17",
+        "last_service_name": "Trabalho Particular"
+      },
+      {
+        "fact": "Fez sua única compra em 27/01/2026 e não voltou a comprar.",
+        "phone": "+************",
+        "full_name": "E***",
+        "person_id": "17c1f333-8ef9-4d53-a5c4-2e3a486659ea",
+        "alert_type": "PRIMEIRA_COMPRA_SEM_RETORNO",
+        "phone_valid": false,
+        "last_purchase_at": "2026-01-27",
+        "last_service_name": "Trabalho Particular"
+      },
+      {
+        "fact": "Fez agrado coletivo em 15/09/2026 e não comprou mais.",
+        "phone": "+************",
+        "full_name": "R***",
+        "person_id": "4611aba9-b6dd-4753-866d-9f641163886a",
+        "alert_type": "SO_AGRADO_COLETIVO",
+        "phone_valid": true,
+        "last_purchase_at": "2026-09-15",
+        "last_service_name": "Agrado ERÊS"
+      },
+      {
+        "fact": "Fez trabalho particular (Trabalho Particular) em 13/10/2026.",
+        "phone": "+************",
+        "full_name": "R***",
+        "person_id": "ad9dabb2-7857-43d4-bcf2-1acc60d12ef2",
+        "alert_type": "TRABALHO_PARTICULAR_RECENTE",
+        "phone_valid": true,
+        "last_purchase_at": "2026-10-13",
+        "last_service_name": "Trabalho Particular"
+      }
+    ]
+  }
+}
