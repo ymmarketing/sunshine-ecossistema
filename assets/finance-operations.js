@@ -211,7 +211,15 @@
       if(!contractId)throw new Error('O servidor não confirmou o lançamento. Tente confirmar novamente nesta mesma tela.');
       var proof=await rpc('v4_entry_receipt',{p_contract_id:contractId});
       var expected=attempt.args.p_payload.items;
-      if(!proof||!proof.items||proof.items.length!==expected.length||expected.some(function(x){return !proof.items.some(function(p){return p.beneficiaryPersonId===x.beneficiaryPersonId&&Number(p.amountCents)===x.amountCents&&Number(p.allocatedCents)>=x.allocateCents&&(!x.referenceMonth||p.referenceMonth===x.referenceMonth)&&(!x.workId||p.workId===x.workId&&p.registrationId);});}))throw new Error('A confirmação dos vínculos ficou incompleta. Mantenha esta tentativa para conferir novamente.');
+      var remaining=proof&&Array.isArray(proof.items)?proof.items.slice():[];
+      if(remaining.length!==expected.length||expected.some(function(x){
+        var index=remaining.findIndex(function(p){return p.beneficiaryPersonId===x.beneficiaryPersonId&&Number(p.amountCents)===x.amountCents&&Number(p.allocatedCents)>=x.allocateCents
+          &&(!x.referenceMonth||p.referenceMonth===x.referenceMonth)&&(!x.workId||p.workId===x.workId&&p.registrationId)
+          &&(!('serviceId' in p)||!x.serviceId||p.serviceId===x.serviceId)&&(!('serviceCategory' in p)||!x.serviceCategory||p.serviceCategory===x.serviceCategory)
+          &&(!('responsibleMemberId' in p)||!x.responsibleMemberId||p.responsibleMemberId===x.responsibleMemberId)
+          &&(x.serviceCategory!=='PERGUNTA'||!('questionId' in p)||!!p.questionId&&p.questionText===x.questionText);});
+        if(index<0)return true;remaining.splice(index,1);return false;
+      }))throw new Error('A confirmação dos vínculos ficou incompleta. Mantenha esta tentativa para conferir novamente.');
       sessionStorage.removeItem(attemptKey);state.entryContext=null;
       if(el('entryMsg'))el('entryMsg').innerHTML='<div class="formSuccess">Lançamento salvo e vínculos conferidos no banco. Referência: '+esc(contractId)+'</div>';
       try{await api.refresh();}catch(e){api.toast('Salvo no banco. Atualize a tela para recarregar os dados.');return result;}

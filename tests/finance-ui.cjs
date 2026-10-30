@@ -348,3 +348,50 @@ test('reserve read failure never displays a false zero and viewers cannot write'
   app.api.state.costReserve={pendingCents:3000,evidence:[],transfers:[{id:'t',amountCents:1000,selectedCents:1000}]};app.api.state.me={permissions:[]};app.api.openCostReserveDrawer();assert(!d.getElementById('reserveTransferForm'));assert(!d.querySelector('.reverseReserveTransfer'));
  }finally{app.close();}
 });
+
+function mixedEntryCatalog(app){app.api.state.services=[{service_id:'agr',name:'Agrado Coletivo 2026',category:'TRABALHO_COLETIVO',default_price_cents:15000},{service_id:'q',name:'Pergunta objetiva',category:'PERGUNTA',default_price_cents:3000},{service_id:'monthly',name:'Mensalidade',category:'MENSALIDADE',default_price_cents:20000},{service_id:'private',name:'Trabalho particular',category:'TRABALHO_PARTICULAR',default_price_cents:120000}];app.api.state.team=[{member_id:'y',full_name:'Yasmin'},{member_id:'r',full_name:'Rosely'}];app.api.state.works=[{work_id:'tata',title:'Agrado Tata Caveira',unit_price_cents:15000,responsible_member_id:'y'}];}
+function fillMixedPerson(x,id,name){x.querySelector('.personIdInput').value=id;x.querySelector('.personNameInput').value=name;x.querySelector('.partBirth').value='1990-01-01';}
+function changeMixed(app,x,selector,value){const n=x.querySelector(selector);n.value=value;n.dispatchEvent(new app.w.Event('change',{bubbles:true}));}
+
+test('one Asaas association splits 360 into two Tata agrados and two separate questions',async()=>{
+ const app=boot(async(name,args)=>name==='v4_api_resolve_person'?args.p_person_id:[]),d=app.w.document;let saved,context;
+ try{
+  mixedEntryCatalog(app);app.api.openEntry({kind:'ASAAS',entryId:'receipt',amountCents:36000,payerPersonId:'p1',payerName:'Pessoa 1'});await new Promise(r=>setTimeout(r,0));
+  changeMixed(app,d,'#associationDestination','NEW');changeMixed(app,d,'#entryService','agr');changeMixed(app,d,'#entryResponsible','y');changeMixed(app,d,'#entryWork','tata');changeMixed(app,d,'#qty','2');
+  let nodes=[...d.querySelectorAll('#participants .participant')];nodes.forEach((x,i)=>{fillMixedPerson(x,'p'+(i+1),'Pessoa '+(i+1));x.querySelector('.partAmount').value='150,00';x.querySelector('.partAmount').dispatchEvent(new app.w.Event('input',{bubbles:true}));});
+  assert.match(d.getElementById('entrySummary').textContent,/Ainda disponível no pagamentoR\$\s*60,00/);
+  d.getElementById('useBalanceForService').click();nodes=[...d.querySelectorAll('#participants .participant')];
+  assert.equal(nodes.length,3);assert(d.getElementById('entrySharedServiceFields').disabled);assert(nodes[0].querySelector('.partService').value==='agr');
+  let q=nodes[2];changeMixed(app,q,'.partCategory','PERGUNTA');changeMixed(app,q,'.partService','q');changeMixed(app,q,'.partResponsible','r');fillMixedPerson(q,'p1','Pessoa 1');q.querySelector('.partQuestion').value='Primeira pergunta';
+  assert(q.querySelector('.partQuestion').required);assert(q.querySelector('.questionOnly').classList.contains('hidden')===false);assert(q.querySelector('.partWorkField').classList.contains('hidden'));
+  assert.match(d.getElementById('entrySummary').textContent,/Ainda disponível no pagamentoR\$\s*30,00/);
+  d.getElementById('repeatEntryService').click();nodes=[...d.querySelectorAll('#participants .participant')];assert.equal(nodes[3].querySelector('.partQuestion').value,'');
+  app.api.operations.saveEntry=async(p,c)=>{saved=p;context=c;};
+  await d.getElementById('entryForm').onsubmit({preventDefault(){}});assert.equal(saved,undefined);assert.match(d.getElementById('entryMsg').textContent,/Informe a pergunta/);
+  nodes[3].querySelector('.partQuestion').value='Segunda pergunta';assert(d.getElementById('entryForm').checkValidity(),'Mixed form must not be blocked by hidden common service fields');await d.getElementById('entryForm').onsubmit({preventDefault(){}});
+  assert(saved,d.getElementById('entryMsg').textContent);assert.equal(context.kind,'ASAAS');assert.equal(context.entryId,'receipt');assert.equal(saved.receivedCents,36000);
+  assert.deepEqual(Array.from(saved.items,x=>x.serviceCategory),['AGRADO_COLETIVO','AGRADO_COLETIVO','PERGUNTA','PERGUNTA']);assert.deepEqual(Array.from(saved.items,x=>x.allocateCents),[15000,15000,3000,3000]);
+  assert.deepEqual(Array.from(saved.items,x=>x.responsibleMemberId),['y','y','r','r']);assert.deepEqual(Array.from(saved.items,x=>x.workId),['tata','tata',null,null]);assert.equal(saved.items[2].beneficiaryPersonId,saved.items[3].beneficiaryPersonId);assert.notEqual(saved.items[2].questionText,saved.items[3].questionText);
+  assert.equal(saved.excessDisposition,null);assert.match(d.getElementById('entrySummary').textContent,/Ainda disponível no pagamentoR\$\s*0,00/);
+ }finally{app.close();}
+});
+
+test('mixed service selections and values survive adding rows and removing the selected middle row',()=>{
+ const app=boot(),d=app.w.document;
+ try{mixedEntryCatalog(app);app.api.openEntry();changeMixed(app,d,'#entryService','agr');changeMixed(app,d,'#entryResponsible','y');d.getElementById('addEntryService').click();
+  let nodes=[...d.querySelectorAll('#participants .participant')];fillMixedPerson(nodes[0],'one','Primeira');fillMixedPerson(nodes[1],'two','Segunda');changeMixed(app,nodes[1],'.partCategory','PERGUNTA');changeMixed(app,nodes[1],'.partService','q');nodes[1].querySelector('.partQuestion').value='Pergunta da segunda';
+  d.getElementById('addEntryService').click();nodes=[...d.querySelectorAll('#participants .participant')];fillMixedPerson(nodes[2],'three','Terceira');changeMixed(app,nodes[2],'.partCategory','TRABALHO_PARTICULAR');changeMixed(app,nodes[2],'.partService','private');nodes[2].querySelector('.partPrivateWork').value='Limpeza espiritual';
+  nodes[1].querySelector('.participantRemove').click();nodes=[...d.querySelectorAll('#participants .participant')];assert.equal(nodes.length,2);assert.equal(nodes[0].querySelector('.personIdInput').value,'one');assert.equal(nodes[1].querySelector('.personIdInput').value,'three');assert.equal(nodes[1].querySelector('.partService').value,'private');assert.equal(nodes[1].querySelector('.partPrivateWork').value,'Limpeza espiritual');assert.equal(d.getElementById('qty').value,'2');
+  changeMixed(app,d,'#qty','3');nodes=[...d.querySelectorAll('#participants .participant')];assert.equal(nodes[1].querySelector('.partCategory').value,'TRABALHO_PARTICULAR');assert.equal(nodes[2].querySelector('.partService').value,'');
+ }finally{app.close();}
+});
+
+test('confirmation consumes different proof items and verifies the question queue and service',async()=>{
+ const expected=[{beneficiaryPersonId:'p',serviceId:'q',serviceCategory:'PERGUNTA',questionText:'Primeira',responsibleMemberId:'r',amountCents:3000,allocateCents:3000},{beneficiaryPersonId:'p',serviceId:'q',serviceCategory:'PERGUNTA',questionText:'Segunda',responsibleMemberId:'r',amountCents:3000,allocateCents:3000}];
+ let mode='missing';const app=boot(async name=>name==='v4_api_register_manual_entry_operational'?{contractId:'c'}:name==='v4_entry_receipt'?{items:expected.map((x,i)=>({...x,allocatedCents:3000,questionId:mode==='missing'?null:'q'+i,questionText:mode==='duplicate'?'Primeira':x.questionText,serviceId:mode==='wrong'?'agr':x.serviceId}))}:[]);
+ try{
+  const payload={idempotencyKey:'fixed-mixed',items:expected};await assert.rejects(app.api.operations.saveEntry(payload,null),/confirmação dos vínculos/);assert(app.api.operations.pendingAttempt());
+  mode='duplicate';await assert.rejects(app.api.operations.saveEntry(null,null),/confirmação dos vínculos/);mode='wrong';await assert.rejects(app.api.operations.saveEntry(null,null),/confirmação dos vínculos/);
+  mode='correct';app.api.state.me={name:'Yasmin',permissions:[]};await app.api.operations.saveEntry(null,null);assert.equal(app.api.operations.pendingAttempt(),null);
+ }finally{app.close();}
+});
