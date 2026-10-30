@@ -13,7 +13,7 @@ function boot(handler=async()=>null) {
   w.eval(fs.readFileSync(path.join(root,'assets/finance-operations.js'),'utf8'));
   w.eval(fs.readFileSync(path.join(root,'assets/payment-matching.js'),'utf8'));
   const inline=[...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(x=>x[1]).join('\n');
-  w.eval(inline.replace('\ninit();','\nwindow.__testing={get operations(){return operations},state:state,openEntry:openEntry,entryCategoryCode:entryCategoryCode,loadPeople:loadPeople,loadPersonDetail:loadPersonDetail,renderPersonDetail:renderPersonDetail,openDebtRegularization:openDebtRegularization,loadFinance:loadFinance};init();'));
+  w.eval(inline.replace('\ninit();','\nwindow.__testing={get operations(){return operations},state:state,openCostReserveDrawer:openCostReserveDrawer,pendingReserveAttempt:pendingReserveAttempt,openEntry:openEntry,entryCategoryCode:entryCategoryCode,loadPeople:loadPeople,loadPersonDetail:loadPersonDetail,renderPersonDetail:renderPersonDetail,openDebtRegularization:openDebtRegularization,loadFinance:loadFinance};init();'));
   return {w,dom,calls,api:w.__testing,close:()=>w.close()};
 }
 test('new modules mount, navigation and brand return to Home, sex is optional',()=>{
@@ -307,5 +307,44 @@ test('new service warns about a debt under a verified related person record',asy
   e('associationDestination').value='NEW';e('associationDestination').dispatchEvent(new app.w.Event('change'));
   await e('entryForm').onsubmit({preventDefault(){}});assert.equal(e('associationDestination').value,'DEBT');
   assert(!app.calls.some(c=>c.name.includes('associate_existing_payment_operational')));
+ }finally{app.close();}
+});
+
+test('reserve card occupies the sixth slot, follows filters and shows retroactive receipts from 27 October',async()=>{
+ const app=boot(async name=>name==='v4_cost_reserve_control'?{generatedCents:9000,transferredCents:3000,pendingCents:6000,evidence:[{allocationId:'a',personName:'Pessoa <script>',responsibleName:'Yasmin',eventName:'Evento',baseCents:30000,costBp:3000,amountCents:9000,transferredCents:3000,pendingCents:6000,paidOn:'2026-10-27'}],transfers:[]}:[]);
+ try{
+  app.api.state.me={name:'Yasmin',permissions:['commission.update']};
+  const d=app.w.document;d.getElementById('dateStart').value='2026-10-27';d.getElementById('dateEnd').value='2026-10-30';
+  d.getElementById('financeCategory').value='TRABALHO_COLETIVO_PREMIUM';
+  await app.api.loadFinance();
+  assert.equal(d.querySelector('#commissionControl').children[5].id,'reserveTransferCard');
+  assert.match(d.getElementById('reserveTransferCard').textContent,/60,00/);assert.match(d.getElementById('reserveTransferCard').textContent,/27\/10\/2026/);
+  const call=app.calls.filter(x=>x.name==='v4_cost_reserve_control').at(-1);assert.equal(call.args.p_start,'2026-10-27');assert.equal(call.args.p_service_category,'TRABALHO_COLETIVO_PREMIUM');
+  d.getElementById('reserveTransferOpen').click();assert.match(d.getElementById('drawerBody').textContent,/Pessoa <script>/);assert.equal(d.querySelector('#drawerBody script'),null);
+  d.getElementById('reserveTransferAmount').value='60,01';await d.getElementById('reserveTransferForm').onsubmit({preventDefault(){}});
+  assert.match(d.getElementById('reserveTransferMsg').textContent,/até o saldo/);assert(!app.calls.some(x=>x.name==='v4_api_record_cost_reserve_transfer'));
+ }finally{app.close();}
+});
+test('uncertain reserve save survives reopening and retries the same payment only once logically',async()=>{
+ const writes=[];let confirmed=false;
+ const app=boot(async(name,args)=>{
+  if(name==='v4_api_record_cost_reserve_transfer'){writes.push(JSON.parse(JSON.stringify(args.p_payload)));if(!confirmed)throw new Error('Connection lost after commit');return{id:'transfer',amountCents:2500,replayed:true};}
+  if(name==='v4_cost_reserve_control')return {generatedCents:3000,transferredCents:2500,pendingCents:500,evidence:[{allocationId:'a',paidOn:'2026-10-27',pendingCents:500}],transfers:[]};return [];
+ });
+ try{
+  app.api.state.me={name:'Yasmin',permissions:['commission.update']};app.api.state.costReserve={pendingCents:3000,evidence:[{allocationId:'a',paidOn:'2026-10-27',pendingCents:3000}],transfers:[]};
+  app.api.openCostReserveDrawer();const d=app.w.document;
+  d.getElementById('reserveTransferAmount').value='25.00';await d.getElementById('reserveTransferForm').onsubmit({preventDefault(){}});
+  assert(app.api.pendingReserveAttempt());assert(d.getElementById('reserveTransferAmount').disabled);
+  app.api.openCostReserveDrawer();confirmed=true;
+  await d.getElementById('reserveTransferForm').onsubmit({preventDefault(){}});
+  assert.equal(writes.length,2);assert.deepEqual(writes[0],writes[1]);assert.equal(writes[0].amountCents,2500);assert.deepEqual(writes[0].allocationIds,['a']);assert.equal(app.api.pendingReserveAttempt(),null);
+  assert.match(d.getElementById('drawerBody').textContent,/5,00/);
+ }finally{app.close();}
+});
+test('reserve read failure never displays a false zero and viewers cannot write',async()=>{
+ const app=boot(async name=>{if(name==='v4_cost_reserve_control')throw new Error('offline');return [];});
+ try{await app.api.loadFinance();const d=app.w.document;assert.match(d.getElementById('reserveTransferCard').textContent,/Indisponível/);assert(!d.getElementById('reserveTransferOpen'));
+  app.api.state.costReserve={pendingCents:3000,evidence:[],transfers:[{id:'t',amountCents:1000,selectedCents:1000}]};app.api.state.me={permissions:[]};app.api.openCostReserveDrawer();assert(!d.getElementById('reserveTransferForm'));assert(!d.querySelector('.reverseReserveTransfer'));
  }finally{app.close();}
 });
