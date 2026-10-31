@@ -13,9 +13,35 @@ function boot(handler=async()=>null) {
   w.eval(fs.readFileSync(path.join(root,'assets/finance-operations.js'),'utf8'));
   w.eval(fs.readFileSync(path.join(root,'assets/payment-matching.js'),'utf8'));
   const inline=[...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(x=>x[1]).join('\n');
-  w.eval(inline.replace('\ninit();','\nwindow.__testing={get operations(){return operations},state:state,openCostReserveDrawer:openCostReserveDrawer,pendingReserveAttempt:pendingReserveAttempt,openEntry:openEntry,entryCategoryCode:entryCategoryCode,loadPeople:loadPeople,loadPersonDetail:loadPersonDetail,renderPersonDetail:renderPersonDetail,openDebtRegularization:openDebtRegularization,loadFinance:loadFinance};init();'));
+  w.eval(inline.replace('\ninit();','\nwindow.__testing={get operations(){return operations},state:state,openCostReserveDrawer:openCostReserveDrawer,pendingReserveAttempt:pendingReserveAttempt,openEntry:openEntry,entryCategoryCode:entryCategoryCode,loadPeople:loadPeople,loadPersonDetail:loadPersonDetail,renderPersonDetail:renderPersonDetail,openDebtRegularization:openDebtRegularization,loadFinance:loadFinance,loadHouse:loadHouse};init();'));
   return {w,dom,calls,api:w.__testing,close:()=>w.close()};
 }
+test('house membership can be inactivated independently and found in the inactive filter',async()=>{
+  let active=true;
+  const app=boot(async(name)=>{
+    if(name==='v4_house_members')return [{house_member_id:'hm-1',person_id:'p-1',person_name:'Natália <teste>',status:active?'ACTIVE':'INACTIVE',left_at:active?null:'2026-10-31'}];
+    if(name==='v4_house_monthly_status')return active?[{house_member_id:'hm-1',person_name:'Natália <teste>',payment_status:'REGULARIZADO',pending_cents:0,paid_cents:0,monthly_fee_cents:20000,reference_month:'2026-10-01',payment_evidence:[{kind:'HISTORICAL_CLEARANCE',recordedAt:'2026-10-31',referenceMonth:'2026-10-01',notes:'Conferido <script>'}]}]:[];
+    if(name==='v4_api_inactivate_house_member'){active=false;return {status:'INACTIVE'};}
+    return [];
+  });
+  try {
+    app.api.state.me={name:'Yasmin',permissions:['house.read','house.update']};
+    await app.api.loadHouse();const d=app.w.document;
+    assert.match(d.getElementById('houseList').textContent,/Regularização histórica/);
+    assert.equal(d.getElementById('houseList').querySelector('script'),null);
+    assert.match(d.getElementById('houseMetrics').textContent,/EM DIA1/);
+    d.querySelector('.houseInactivate').click();
+    d.getElementById('houseLeftAt').value='2026-10-31';d.getElementById('houseInactiveNote').value='Saída da casa';
+    await d.getElementById('houseInactiveForm').onsubmit({preventDefault(){}});
+    const call=app.calls.find(c=>c.name==='v4_api_inactivate_house_member');
+    assert.equal(call.args.p_house_member_id,'hm-1');assert.equal(call.args.p_left_at,'2026-10-31');
+    assert.doesNotMatch(d.getElementById('houseList').textContent,/Natália/);
+    d.getElementById('houseStatusFilter').value='INACTIVE';d.getElementById('houseStatusFilter').dispatchEvent(new app.w.Event('change',{bubbles:true}));
+    assert.match(d.getElementById('houseList').textContent,/Natália <teste>/);
+    assert.match(d.getElementById('houseList').textContent,/Filho inativo desde 31\/10\/2026/);
+    assert.equal(d.getElementById('houseList').querySelector('.houseInactivate'),null);
+  } finally {app.close();}
+});
 test('commission payment accepts 700 against 595 and displays negative credit',async()=>{
   const control={pendingTotalCents:-10500,paidTotalCents:70000,pendingByPerson:{Rosely:-10500},evidence:[{commissionId:'advance',commissionTable:'ADVANCE',recipientName:'Rosely',amountCents:10500,paidCents:10500,pendingCents:-10500,paidAt:'2026-10-31'}]};
   const app=boot(async(name)=>name==='v4_finance_commission_control_filtered'?control:name==='v4_finance_dashboard_filtered'?{}:[]);
