@@ -16,6 +16,27 @@ function boot(handler=async()=>null) {
   w.eval(inline.replace('\ninit();','\nwindow.__testing={get operations(){return operations},state:state,openCostReserveDrawer:openCostReserveDrawer,pendingReserveAttempt:pendingReserveAttempt,openEntry:openEntry,entryCategoryCode:entryCategoryCode,loadPeople:loadPeople,loadPersonDetail:loadPersonDetail,renderPersonDetail:renderPersonDetail,openDebtRegularization:openDebtRegularization,loadFinance:loadFinance};init();'));
   return {w,dom,calls,api:w.__testing,close:()=>w.close()};
 }
+test('commission payment accepts 700 against 595 and displays negative credit',async()=>{
+  const control={pendingTotalCents:-10500,paidTotalCents:70000,pendingByPerson:{Rosely:-10500},evidence:[{commissionId:'advance',commissionTable:'ADVANCE',recipientName:'Rosely',amountCents:10500,paidCents:10500,pendingCents:-10500,paidAt:'2026-10-31'}]};
+  const app=boot(async(name)=>name==='v4_finance_commission_control_filtered'?control:name==='v4_finance_dashboard_filtered'?{}:[]);
+  try {
+    app.api.state.me={name:'Yasmin',permissions:['commission.update']};
+    app.api.state.commissionControl={pendingByPerson:{Rosely:59500},evidence:[{commissionId:'due',commissionTable:'V4',recipientName:'Rosely',pendingCents:59500}]};
+    app.w.document.getElementById('commissionPayAll').onclick();
+    const input=app.w.document.querySelector('[data-recipient="Rosely"].commissionPayInput');
+    assert.equal(input.disabled,false);input.value='700';
+    await app.w.document.getElementById('commissionPaymentForm').onsubmit({preventDefault(){}});
+    const call=app.calls.find(x=>x.name==='v4_api_record_commission_payments');assert(call);assert.equal(call.args.p_items[0].amountCents,70000);
+    assert.match(app.w.document.getElementById('commissionControl').textContent,/-R\$\s*105,00/);
+    assert.equal(app.w.document.getElementById('commissionPayAll').classList.contains('hidden'),false);
+    app.w.document.querySelector('[data-finance-detail="commission-pending"][data-recipient="Rosely"]').click();
+    assert.match(app.w.document.getElementById('financeEvidenceList').textContent,/Adiantamento — Rosely/);
+    assert.match(app.w.document.getElementById('financeEvidenceList').textContent,/105,00/);
+    assert.equal(app.w.document.getElementById('financeEvidenceList').querySelector('.commissionStatus'),null);
+    app.w.document.getElementById('commissionPayAll').onclick();
+    assert.equal(app.w.document.querySelector('[data-recipient="Rosely"].commissionPayInput').disabled,false);
+  } finally {app.close();}
+});
 test('new modules mount, navigation and brand return to Home, sex is optional',()=>{
   const app=boot(),w=app.w;
   try {
