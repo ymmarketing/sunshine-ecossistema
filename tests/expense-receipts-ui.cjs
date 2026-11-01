@@ -24,6 +24,7 @@ function boot(viewer=false){
  }
  w.supabase={createClient:()=>({auth:{getSession:async()=>({data:{session:null}}),signOut:async()=>{}},rpc:async(name,args)=>{calls.push({name,args:JSON.parse(JSON.stringify(args))});try{return {data:await handler(name,args),error:null};}catch(error){return {data:null,error};}}})};
  w.eval(fs.readFileSync(path.join(root,'assets/expense-receipts.js'),'utf8'));
+ w.eval(fs.readFileSync(path.join(root,'assets/private-works.js'),'utf8'));
  w.eval(fs.readFileSync(path.join(root,'assets/finance-operations.js'),'utf8'));
  const inline=[...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(m=>m[1]).join('\n');
  w.eval(inline.replace('\ninit();','\nwindow.__testing={get operations(){return operations},state:state};init();'));

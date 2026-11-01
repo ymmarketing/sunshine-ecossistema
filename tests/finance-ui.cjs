@@ -10,7 +10,8 @@ function boot(handler=async()=>null) {
   const w=dom.window,calls=[];w.scrollTo=()=>{};w.HTMLElement.prototype.scrollIntoView=()=>{};w.confirm=()=>true;
   w.supabase={createClient:()=>({auth:{getSession:async()=>({data:{session:null}}),signOut:async()=>{}},rpc:async(name,args)=>{calls.push({name,args});try{return {data:await handler(name,args),error:null}}catch(error){return {data:null,error}}}})};
   w.eval(fs.readFileSync(path.join(root,'assets/recurring-costs.js'),'utf8'));
-  w.eval(fs.readFileSync(path.join(root,'assets/finance-operations.js'),'utf8'));
+  w.eval(fs.readFileSync(path.join(root,'assets/private-works.js'),'utf8'));
+ w.eval(fs.readFileSync(path.join(root,'assets/finance-operations.js'),'utf8'));
   w.eval(fs.readFileSync(path.join(root,'assets/payment-matching.js'),'utf8'));
   const inline=[...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(x=>x[1]).join('\n');
   w.eval(inline.replace('\ninit();','\nwindow.__testing={get operations(){return operations},state:state,openCostReserveDrawer:openCostReserveDrawer,pendingReserveAttempt:pendingReserveAttempt,openEntry:openEntry,entryCategoryCode:entryCategoryCode,loadPeople:loadPeople,loadPersonDetail:loadPersonDetail,renderPersonDetail:renderPersonDetail,openDebtRegularization:openDebtRegularization,loadFinance:loadFinance,loadHouse:loadHouse};init();'));
@@ -302,7 +303,9 @@ test('private work descriptions stay with each person and reach the saved servic
     d.getElementById('entryService').dispatchEvent(new w.Event('change',{bubbles:true}));
     assert.equal(app.api.entryCategoryCode(),'TRABALHO_PARTICULAR');
     let description=d.querySelector('.partPrivateWork');
-    assert(description.required);assert(!description.closest('.privateOnly').classList.contains('hidden'));
+    assert(d.querySelector('.partPrivateCategory').required);assert(!description.closest('.privateOnly').classList.contains('hidden'));
+    d.querySelector('.partPrivateCategory').value='LIMPEZA_ESPIRITUAL';d.querySelector('.partPrivateCategory').dispatchEvent(new w.Event('change',{bubbles:true}));
+    assert.equal(d.querySelector('.partAmount').value,'1200,00');
     description.value='Limpeza espiritual';
     d.getElementById('qty').value='2';d.getElementById('qty').dispatchEvent(new w.Event('change',{bubbles:true}));
     assert.equal(d.querySelectorAll('.partPrivateWork')[0].value,'Limpeza espiritual');
@@ -312,7 +315,8 @@ test('private work descriptions stay with each person and reach the saved servic
     const responsible=d.getElementById('entryResponsible');responsible.insertAdjacentHTML('beforeend','<option value="member">Responsável</option>');responsible.value='member';
     let saved;app.api.operations.saveEntry=async p=>{saved=p;};
     await d.getElementById('entryForm').onsubmit({preventDefault(){}});
-    assert.equal(saved,undefined);assert.match(d.getElementById('entryMsg').textContent,/cada pessoa/);
+    assert.equal(saved,undefined);assert.match(d.getElementById('entryMsg').textContent,/categoria/);
+    d.querySelectorAll('.partPrivateCategory')[1].value='OUTROS';d.querySelectorAll('.partPrivateCategory')[1].dispatchEvent(new w.Event('change',{bubbles:true}));
     d.querySelectorAll('.partPrivateWork')[1].value='Proteção <especial>';
     await d.getElementById('entryForm').onsubmit({preventDefault(){}});
     assert(saved,d.getElementById('entryMsg').textContent);assert.equal(saved.items[0].serviceName,'Limpeza espiritual');assert.equal(saved.items[1].serviceName,'Proteção <especial>');
@@ -440,5 +444,28 @@ test('confirmation consumes different proof items and verifies the question queu
   const payload={idempotencyKey:'fixed-mixed',items:expected};await assert.rejects(app.api.operations.saveEntry(payload,null),/confirmação dos vínculos/);assert(app.api.operations.pendingAttempt());
   mode='duplicate';await assert.rejects(app.api.operations.saveEntry(null,null),/confirmação dos vínculos/);mode='wrong';await assert.rejects(app.api.operations.saveEntry(null,null),/confirmação dos vínculos/);
   mode='correct';app.api.state.me={name:'Yasmin',permissions:[]};await app.api.operations.saveEntry(null,null);assert.equal(app.api.operations.pendingAttempt(),null);
+ }finally{app.close();}
+});
+
+test('private agrados accept multiple entities, preserve them across mixed rows and send structured fields',async()=>{
+ const app=boot(async(name,args)=>name==='v4_api_resolve_person'?args.p_person_id:[]),d=app.w.document,w=app.w;
+ try{
+  app.api.state.services=[{service_id:'private',name:'Trabalho Particular',category:'TRABALHO_PARTICULAR'}];
+  app.api.state.team=[{member_id:'y',full_name:'Yasmin'}];app.api.openEntry();
+  d.getElementById('entryService').value='private';d.getElementById('entryService').dispatchEvent(new w.Event('change',{bubbles:true}));d.getElementById('entryResponsible').value='y';
+  let row=d.querySelector('.participant');row.querySelector('.partPrivateCategory').value='AGRADO';row.querySelector('.partPrivateCategory').dispatchEvent(new w.Event('change',{bubbles:true}));
+  assert(row.querySelector('.partEntities').required);row.querySelector('.partEntities').value='Exu Tranca Ruas; Maria Padilha; Cabocla Jurema';row.querySelector('.partPrivateWork').value='Observações <seguras>';row.querySelector('.partAmount').value='300,00';
+  row.querySelector('.personIdInput').value='person';row.querySelector('.personNameInput').value='Pessoa teste';row.querySelector('.partBirth').value='1990-01-01';
+  d.getElementById('addEntryService').click();d.querySelectorAll('.participantRemove')[1].click();
+  row=d.querySelector('.participant');assert.equal(row.querySelector('.partEntities').value,'Exu Tranca Ruas; Maria Padilha; Cabocla Jurema');
+  let saved;app.api.operations.saveEntry=async p=>{saved=p;};await d.getElementById('entryForm').onsubmit({preventDefault(){}});
+  assert(saved,d.getElementById('entryMsg').textContent);assert.equal(saved.items[0].privateWorkCategory,'AGRADO');assert.equal(saved.items[0].privateWorkEntities,'Exu Tranca Ruas; Maria Padilha; Cabocla Jurema');assert.equal(saved.items[0].privateWorkDetails,'Observações <seguras>');
+ }finally{app.close();}
+});
+
+test('private work search filters entity/category and shows return dates without executing messages',async()=>{
+ const app=boot(async(name,args)=>name==='v4_private_works'?{total:1,items:[{itemId:'i',personName:'Pessoa <script>',serviceName:'Limpeza espiritual',privateWorkCategory:'LIMPEZA_ESPIRITUAL',privateWorkDetails:'Detalhe <img>',responsibleName:'Rosely',amountCents:120000,firstPaidOn:'2026-11-01',returnDueOn:'2026-11-22',paymentId:'p'}]}:[]);
+ try{const d=app.w.document;d.getElementById('privateWorkCategoryFilter').value='LIMPEZA_ESPIRITUAL';d.getElementById('privateWorkQuery').value='Padilha';await app.api.operations.onPage('particulares');
+ const call=app.calls.find(x=>x.name==='v4_private_works');assert.equal(call.args.p_category,'LIMPEZA_ESPIRITUAL');assert.equal(call.args.p_query,'Padilha');assert.match(d.getElementById('privateWorkRows').textContent,/22\/11\/2026/);assert.equal(d.getElementById('privateWorkRows').querySelector('script,img'),null);
  }finally{app.close();}
 });

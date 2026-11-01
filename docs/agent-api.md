@@ -115,3 +115,29 @@ Erros esperados: `NAO_AUTORIZADO`, `DATA_INVALIDA`, `PERIODO_INVALIDO`, `SEM_DAD
 - Foram encontrados casos reais nos oito tipos. Conferência do histórico: particular em 13/10 (15 dias); consulta em 27/08 sem trabalho posterior; compra única em 14/01; somente agrado em 02/09; duas compras com última em 01/08 (88 dias); última compra em 14/01 (>90 dias); membro ativo com vencimento em 10/01 e saldo pendente; cadastro em 28/08 sem compra. A prioridade pode ocultar um caso que também se enquadre em outro tipo.
 
 Os exemplos completos mascarados estão em [agent-api-examples.json](agent-api-examples.json). O exemplo `register` foi realmente executado com pessoa e membro existentes, em transação revertida; seu ID não permanece no banco.
+
+## Trabalhos particulares — categorias e Robovaldo (01/11/2026)
+
+A consulta existente `agent_sql(p_sql)` continua sendo o ponto de entrada de leitura do Robovaldo. `agent_ro.itens_venda` foi ampliada com `private_work_category`, `private_work_entities` e `private_work_details`. A view privada `trabalhos_particulares` reúne os mesmos campos, beneficiário, telefone, responsável, valor, primeiro pagamento válido e `return_due_on`. Somente `agent_reader` recebe SELECT; não há acesso de anon/authenticated nem capacidade de escrita. A tela autenticada usa `v4_private_works(p_category,p_query,p_return_before,p_limit)`, com permissão person.read.
+
+Categorias: `LIMPEZA_ESPIRITUAL`, `AGRADO`, `DIVORCIO_ENERGETICO`, `ADOCAMENTO`, `AFASTAMENTO_RIVAL`, `BICHO`, `OUTROS`. Agrado exige um texto livre de uma ou mais entidades; não há quantidade fixa nem cadastro obrigatório de entidade. Outros exige descrição. Categorias não são inferidas pelo valor e o histórico permanece sem classificação até revisão explícita.
+
+Limpeza inicia em R$ 1.200 na associação, com valor editável para condições específicas. `return_due_on` é calculado por item a partir do primeiro pagamento PAID positivo e válido, acrescido de 21 dias corridos em São Paulo. Parcelas posteriores não reiniciam o prazo; pagamentos/associações anulados e contratos/obrigações cancelados não compõem esse retorno. A data indica prazo de contato, não prova retorno realizado ou agendamento. Sem pagamento válido, a data é nula. Não há envio automático a cliente nesta alteração.
+
+Exemplos para a ferramenta SQL existente do Robovaldo:
+
+```sql
+SELECT person_name, private_work_entities, private_work_details
+FROM trabalhos_particulares
+WHERE private_work_category = 'AGRADO'
+AND private_work_entities ILIKE '%Padilha%'
+```
+
+```sql
+SELECT person_name, phone, first_paid_on, return_due_on
+FROM trabalhos_particulares
+WHERE private_work_category = 'LIMPEZA_ESPIRITUAL'
+AND return_due_on = DATE '2026-11-22'
+```
+
+O repositório do Robovaldo é `ymmarketing/robovaldo`, projeto Vercel `sunshine-agente`. As instruções do SQL ficam em `lib/dataAgent.ts`; o roteamento deve encaminhar consultas de categorias particulares, entidades e retorno para a consulta estruturada também no primeiro contato, evitando o antigo filtro baseado apenas no nome de serviço do catálogo. Os campos também aparecem em `agent_person_history`, no detalhe do pagamento e na confirmação da associação. Testes SQL usam rollback e preservam comissões, pagamentos e históricos reais.

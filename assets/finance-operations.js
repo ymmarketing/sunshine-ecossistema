@@ -4,6 +4,7 @@
     var el=api.el, esc=api.esc, money=api.money, cents=api.cents, rpc=api.rpc, state=api.state;
     var agentModule=window.SunshineAgentAlerts?window.SunshineAgentAlerts(api):null;
     var management=null, cash=null, expenses=[], destinations=[], birthdays=[], report=null;
+    var privateModule=window.SunshinePrivateWorks?window.SunshinePrivateWorks.module(api):null;
     var attemptKey='sunshine.pendingEntry.v1';
     var receiptModule=window.SunshineExpenseReceipts?window.SunshineExpenseReceipts(api):null;
     var recurringModule=window.SunshineRecurringCosts?window.SunshineRecurringCosts(Object.assign({},api,{refreshCosts:loadCosts})):null;
@@ -70,9 +71,9 @@
         var receipt=ev.target.closest('[data-edit-receipt]');if(receipt)editReceipt(receipt.dataset.editReceipt);
       });
       if(receiptModule)receiptModule.init();if(agentModule)agentModule.init();
-      if(recurringModule)recurringModule.init();
+      if(recurringModule)recurringModule.init();if(privateModule)privateModule.init();
     }
-    async function onPage(id) { if(agentModule)await agentModule.onPage(id); if(id==='custos')await loadCosts();if(id==='faturamento')await loadManagement();if(receiptModule)await receiptModule.onPage(id); }
+    async function onPage(id) { if(privateModule)await privateModule.onPage(id); if(agentModule)await agentModule.onPage(id); if(id==='custos')await loadCosts();if(id==='faturamento')await loadManagement();if(receiptModule)await receiptModule.onPage(id); }
     async function loadCash() {
       try {
         cash=await rpc('v4_cash_availability',{p_start:el('dateStart').value,p_end:el('dateEnd').value});
@@ -181,16 +182,20 @@
       var x=(state.paymentDetails[paymentId].allocations||[]).find(function(a){return a.itemId===itemId;});if(!x)return;
       var receivedOn=new Intl.DateTimeFormat('en-CA',{timeZone:'America/Sao_Paulo',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(state.paymentDetails[paymentId].payment.paidAt)),otherBp=receivedOn>='2026-11-01'?1500:1050,reserveBp=receivedOn>='2026-10-08'&&['CONSULTA','PERGUNTA'].includes(x.serviceCategory)?0:3000,responsibleBp=10000-reserveBp-2*otherBp,overrideReserve=x.commissionOverride?Number(x.commissionOverride.costBp):reserveBp;
       api.openDrawer('Corrigir lançamento','<form id="financialItemForm"><p class="note">O comprovante é preservado. Alterações de divisão/responsável recalculam apenas comissões ainda não pagas, respeitando a data de cada recebimento.</p>'+select('itemPerson','Beneficiário',api.personOptions(x.beneficiaryPersonId))+field('itemAmount','Valor total do serviço (R$)','text',decimal(x.totalCents),'inputmode="decimal" required')+select('itemWork','Trabalho associado',worksOptions(x.workId,false))+field('itemEvent','Evento / referência','text',x.eventName)+field('itemService',x.serviceCategory==='TRABALHO_PARTICULAR'?'Qual trabalho particular foi realizado?':'Nome do serviço','text',x.serviceName,'required maxlength="300"')+select('itemCategory','Tipo',api.serviceCategoryOptions(x.serviceCategory))+select('itemResponsible','Responsável',api.teamOptions())+field('itemReference','Referência mensal','month',String(x.referenceMonth||'').slice(0,7))+field('itemQuestion','Pergunta objetiva','text',x.questionText)+'<label class="row paymentChoice"><input id="customCommission" type="checkbox"><span>Usar divisão individual neste lançamento</span></label><div id="commissionSplitFields" class="summaryBox hidden">'+field('splitCost','Reserva Sunshine (%)','text',decimal(reserveBp===0?0:overrideReserve),'inputmode="decimal"')+state.team.map(function(t){var share=x.commissionOverride&&(x.commissionOverride.shares||[]).find(function(s){return s.memberId===t.member_id;});return field('split'+t.member_id,t.full_name+' (%)','text',decimal(share?Number(share.basisPoints)+(reserveBp===0&&t.member_id===x.responsibleMemberId?overrideReserve:0):(t.member_id===x.responsibleMemberId?responsibleBp:otherBp)),'inputmode="decimal"');}).join('')+'<p class="hint">Percentuais sobre o recebimento integral, somando 100%. Desde 08/10, consultas e perguntas não retiram reserva. Desmarcar restaura a regra vigente na data de cada recebimento.</p></div>'+field('itemReason','Justificativa','text','','required minlength="3"')+'<div id="financialItemMsg"></div><button class="primary" type="submit">Salvar correção</button></form>');
+      el('financialItemForm').insertAdjacentHTML('afterbegin','<div id="privateItemFields">'+SunshinePrivateWorks.fields(x)+'</div>');
+      var privateBox=el('privateItemFields');SunshinePrivateWorks.sync(privateBox,x.serviceCategory==='TRABALHO_PARTICULAR',false);privateBox.querySelector('.partPrivateCategory').required=false;
+      privateBox.querySelector('.partPrivateCategory').onchange=function(){SunshinePrivateWorks.sync(privateBox,el('itemCategory').value==='TRABALHO_PARTICULAR',false);};
       el('itemWork').value=x.workId||'';el('itemResponsible').value=x.responsibleMemberId||'';el('customCommission').checked=!!x.commissionOverride;el('commissionSplitFields').classList.toggle('hidden',!x.commissionOverride);el('customCommission').onchange=function(){el('commissionSplitFields').classList.toggle('hidden',!this.checked);};
       function syncSplitCategory(){
+        SunshinePrivateWorks.sync(privateBox,el('itemCategory').value==='TRABALHO_PARTICULAR',false);privateBox.querySelector('.partPrivateCategory').required=false;
         var exempt=receivedOn>='2026-10-08'&&['CONSULTA','PERGUNTA'].includes(el('itemCategory').value),responsible=el('itemResponsible').value;
         if(!x.commissionOverride){var cost=exempt?0:3000;el('splitCost').value=decimal(cost);state.team.forEach(function(t){el('split'+t.member_id).value=decimal(t.member_id===responsible?10000-cost-2*otherBp:otherBp);});}
         else if(exempt){var released=cents(el('splitCost').value);el('split'+responsible).value=decimal(cents(el('split'+responsible).value)+released);el('splitCost').value='0,00';}
         el('splitCost').readOnly=exempt;
       }
       el('itemCategory').onchange=syncSplitCategory;el('itemResponsible').onchange=syncSplitCategory;syncSplitCategory();
-      el('financialItemForm').onsubmit=guarded('financialItemMsg',async function(){var override=el('customCommission').checked?{costBp:cents(el('splitCost').value),shares:state.team.map(function(t){return {memberId:t.member_id,basisPoints:cents(el('split'+t.member_id).value)};})}:null;
-        await rpc('v4_api_edit_financial_item',{p_item_id:itemId,p_reason:el('itemReason').value,p_data:{beneficiaryPersonId:el('itemPerson').value,amountCents:cents(el('itemAmount').value),workId:el('itemWork').value||null,eventName:el('itemEvent').value,serviceName:el('itemService').value,serviceCategory:el('itemCategory').value,responsibleMemberId:el('itemResponsible').value,referenceMonth:el('itemReference').value?el('itemReference').value+'-01':null,questionText:el('itemQuestion').value,commissionOverride:override}});
+      el('financialItemForm').onsubmit=guarded('financialItemMsg',async function(){var privateData=el('itemCategory').value==='TRABALHO_PARTICULAR'?SunshinePrivateWorks.data(privateBox,false):{privateWorkCategory:null,privateWorkEntities:null,privateWorkDetails:null};var override=el('customCommission').checked?{costBp:cents(el('splitCost').value),shares:state.team.map(function(t){return {memberId:t.member_id,basisPoints:cents(el('split'+t.member_id).value)};})}:null;
+        await rpc('v4_api_edit_financial_item',{p_item_id:itemId,p_reason:el('itemReason').value,p_data:{beneficiaryPersonId:el('itemPerson').value,amountCents:cents(el('itemAmount').value),workId:el('itemWork').value||null,eventName:el('itemEvent').value,serviceName:el('itemService').value,serviceCategory:el('itemCategory').value,responsibleMemberId:el('itemResponsible').value,referenceMonth:el('itemReference').value?el('itemReference').value+'-01':null,questionText:el('itemQuestion').value,commissionOverride:override,privateWorkCategory:privateData.privateWorkCategory,privateWorkEntities:privateData.privateWorkEntities,privateWorkDetails:privateData.privateWorkDetails}});
         await api.refresh();await api.openPaymentDetail(paymentId);api.toast('Lançamento corrigido.');
       });
     }
@@ -216,6 +221,7 @@
         var index=remaining.findIndex(function(p){return p.beneficiaryPersonId===x.beneficiaryPersonId&&Number(p.amountCents)===x.amountCents&&Number(p.allocatedCents)>=x.allocateCents
           &&(!x.referenceMonth||p.referenceMonth===x.referenceMonth)&&(!x.workId||p.workId===x.workId&&p.registrationId)
           &&(!('serviceId' in p)||!x.serviceId||p.serviceId===x.serviceId)&&(!('serviceCategory' in p)||!x.serviceCategory||p.serviceCategory===x.serviceCategory)
+          &&(!x.privateWorkCategory||(p.privateWorkCategory===x.privateWorkCategory&&(p.privateWorkEntities||null)===(x.privateWorkEntities||null)&&(p.privateWorkDetails||null)===(x.privateWorkDetails||null)))
           &&(!('responsibleMemberId' in p)||!x.responsibleMemberId||p.responsibleMemberId===x.responsibleMemberId)
           &&(x.serviceCategory!=='PERGUNTA'||!('questionId' in p)||!!p.questionId&&p.questionText===x.questionText);});
         if(index<0)return true;remaining.splice(index,1);return false;
