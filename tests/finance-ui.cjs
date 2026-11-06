@@ -469,3 +469,28 @@ test('private work search filters entity/category and shows return dates without
  const call=app.calls.find(x=>x.name==='v4_private_works');assert.equal(call.args.p_category,'LIMPEZA_ESPIRITUAL');assert.equal(call.args.p_query,'Padilha');assert.match(d.getElementById('privateWorkRows').textContent,/22\/11\/2026/);assert.equal(d.getElementById('privateWorkRows').querySelector('script,img'),null);
  }finally{app.close();}
 });
+
+test('team commissions big number and settling a pending cost from the costs detail',async()=>{
+  const paid=[];
+  const mgmt={revenueCents:4055019,costsCents:1000000,profitCents:3055019,marginBp:7534,paidCostsCents:162000,pendingCostsCents:838000,salesCents:0,reserveCents:0,
+    cash:{pendingTransferCents:0,evidence:[]},annual:[],incomeCategories:[],voids:[],expenses:[],
+    profile:{peopleCount:0,participations:0,ageGroups:[],sexGroups:[],serviceGroups:[],topPeople:[]},
+    teamCommissions:{totalCents:769234,paidCents:769234,pendingCents:0,byRecipient:[{recipient_name:'Lourdes',total_cents:364667,paid_cents:364667,pending_cents:0,items:193}],evidence:[]},
+    teamCommissionsCents:769234,profitAfterTeamCents:2285785,marginAfterTeamBp:5637,
+    costEvidence:[{id:'11111111-1111-4111-8111-111111111111',description:'Imposto - 10/2026',category:'OPERACIONAL',amount_cents:120000,occurred_on:'2026-10-25',paid_on:null,status:'PENDING',origin:'EXPENSE'},
+      {id:'receipt:abc',description:'Mercado',category:'Alimentação da casa',amount_cents:5000,occurred_on:'2026-10-10',paid_on:'2026-10-10',status:'PAID',origin:'RECEIPT'}]};
+  const app=boot(async(name,args)=>{if(name==='v4_api_pay_expense'){paid.push(args);return {id:args.p_id};}if(name==='v4_finance_management')return mgmt;return [];});
+  try{
+    app.api.state.me={permissions:['dashboard.read','record.update']};
+    await app.api.operations.onPage('faturamento');
+    const text=app.w.document.getElementById('managementMetrics').textContent;
+    assert.match(text,/COMISSÕES DA EQUIPE/);assert.match(text,/MARGEM APÓS COMISSÕES DA EQUIPE/);
+    app.w.document.querySelector('[data-management-detail="pending-costs"]').click();
+    const settle=app.w.document.querySelector('[data-settle-cost]');assert.ok(settle,'pending ERP cost offers Regularizar');
+    settle.click();
+    app.w.document.getElementById('settleCostDate').value='2026-10-24';
+    app.w.document.getElementById('settleCostForm').dispatchEvent(new app.w.Event('submit',{cancelable:true}));
+    await new Promise(r=>setTimeout(r,20));
+    assert.deepEqual(JSON.parse(JSON.stringify(paid)),[{p_id:'11111111-1111-4111-8111-111111111111',p_paid_on:'2026-10-24'}]);
+  }finally{app.close();}
+});
