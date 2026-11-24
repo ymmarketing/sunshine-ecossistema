@@ -9,12 +9,13 @@ function boot(handler=async()=>null) {
   const dom=new JSDOM(html.replace(/<script[\s\S]*?<\/script>/g,''),{url:'https://sunshine.ymnegocios.com.br/',runScripts:'outside-only'});
   const w=dom.window,calls=[];w.scrollTo=()=>{};w.HTMLElement.prototype.scrollIntoView=()=>{};w.confirm=()=>true;
   w.supabase={createClient:()=>({auth:{getSession:async()=>({data:{session:null}}),signOut:async()=>{}},rpc:async(name,args)=>{calls.push({name,args});try{return {data:await handler(name,args),error:null}}catch(error){return {data:null,error}}}})};
+  w.eval(fs.readFileSync(path.join(root,'assets/event-finance.js'),'utf8'));
   w.eval(fs.readFileSync(path.join(root,'assets/recurring-costs.js'),'utf8'));
   w.eval(fs.readFileSync(path.join(root,'assets/private-works.js'),'utf8'));
  w.eval(fs.readFileSync(path.join(root,'assets/finance-operations.js'),'utf8'));
   w.eval(fs.readFileSync(path.join(root,'assets/payment-matching.js'),'utf8'));
   const inline=[...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(x=>x[1]).join('\n');
-  w.eval(inline.replace('\ninit();','\nwindow.__testing={get operations(){return operations},state:state,openCostReserveDrawer:openCostReserveDrawer,pendingReserveAttempt:pendingReserveAttempt,openEntry:openEntry,entryCategoryCode:entryCategoryCode,loadPeople:loadPeople,loadPersonDetail:loadPersonDetail,renderPersonDetail:renderPersonDetail,openDebtRegularization:openDebtRegularization,loadFinance:loadFinance,loadHouse:loadHouse};init();'));
+  w.eval(inline.replace('\ninit();','\nwindow.__testing={get operations(){return operations},state:state,loadHome:loadHome,loadHomeCommission:loadHomeCommission,loadHomeEventFinance:loadHomeEventFinance,homeFinanceAction:homeFinanceAction,openCostReserveDrawer:openCostReserveDrawer,pendingReserveAttempt:pendingReserveAttempt,openEntry:openEntry,entryCategoryCode:entryCategoryCode,loadPeople:loadPeople,loadPersonDetail:loadPersonDetail,renderPersonDetail:renderPersonDetail,openDebtRegularization:openDebtRegularization,loadFinance:loadFinance,loadHouse:loadHouse};init();'));
   return {w,dom,calls,api:w.__testing,close:()=>w.close()};
 }
 test('house membership can be inactivated independently and found in the inactive filter',async()=>{
@@ -223,7 +224,7 @@ test('regularization requires a responsible and sends it with the original oblig
 test('receipt reserve card uses backend amount and opens per-entry evidence',async()=>{
   const app=boot(async(name)=>name==='v4_finance_dashboard_filtered'?{salesCents:526500,reserveCents:157950,commissionTotalCents:368550,reserveEvidence:[{personName:'Pessoa <script>',serviceName:'Limpeza',paidAt:'2026-10-03T12:00:00Z',costBp:3000,baseCents:22000,amountCents:6600}]}:[]);
   try{
-    await app.api.loadFinance();const card=app.w.document.querySelector('[data-finance-detail="reserve"]');assert(card);assert(card.textContent.includes('RESERVA PARA CUSTOS'));assert.match(card.textContent,/1\.579,50/);
+    await app.api.loadFinance();const card=app.w.document.querySelector('[data-finance-detail="reserve"]');assert(card);assert(card.textContent.includes('RESERVA DA CASA'));assert.match(card.textContent,/1\.579,50/);
     card.click();const list=app.w.document.getElementById('financeEvidenceList');assert(list.textContent.includes('Limpeza'));assert(list.textContent.includes('30%'));assert.match(list.textContent,/66,00/);assert.equal(list.querySelector('script'),null);
   }finally{app.close();}
 });
@@ -493,4 +494,36 @@ test('team commissions big number and settling a pending cost from the costs det
     await new Promise(r=>setTimeout(r,20));
     assert.deepEqual(JSON.parse(JSON.stringify(paid)),[{p_id:'11111111-1111-4111-8111-111111111111',p_paid_on:'2026-10-24'}]);
   }finally{app.close();}
+});
+
+test('Home compares material budget and house reserve separately, with real generated commissions',async()=>{
+ const work={title:'Evento <script>',receivedCents:100000,costTargetCents:20000,costsCents:15000,houseTargetCents:20000,commissionCents:80000,balanceCents:5000,commissionsByPerson:{Yasmin:50000,Lourdes:15000,Rosely:15000}};
+ const app=boot(async name=>name==='v4_open_work_finance'?[work]:[]);
+ try{
+  await app.api.loadHomeEventFinance();const panel=app.w.document.getElementById('homeEventFinance');
+  assert.match(panel.textContent,/Dentro da meta/);assert.match(panel.textContent,/Faltam R\$\s*150,00/);
+  assert.equal(panel.querySelector('script'),null);
+  assert.equal(panel.querySelectorAll('.badge.good').length,1);assert.equal(panel.querySelectorAll('.badge.bad').length,1);
+  assert.equal(app.w.document.getElementById('openWorksDisclosure').open,true);
+ }finally{app.close();}
+});
+test('Home commissions use the current month independently of Receita filters and preserve negative advances',async()=>{
+ const control={pendingTotalCents:-500,pendingByPerson:{Yasmin:-500,Lourdes:0,Rosely:0},paidTotalCents:10000,evidence:[]};
+ const app=boot(async name=>name==='v4_finance_commission_control_filtered'?control:name==='v4_cost_reserve_control'?{pendingCents:2000}:[]);
+ try{
+  const d=app.w.document;app.api.state.me={name:'Yasmin',permissions:['commission.update']};
+  d.getElementById('dateStart').value='2020-01-01';d.getElementById('financeCategory').value='CONSULTA';
+  await app.api.loadHomeCommission();
+  const call=app.calls.find(x=>x.name==='v4_finance_commission_control_filtered');
+  assert.notEqual(call.args.p_start,'2020-01-01');assert.equal(call.args.p_service_category,null);
+  assert.match(d.getElementById('homeCommissionControl').textContent,/YASMIN — REPASSE PENDENTE/);
+  assert.match(d.getElementById('homeCommissionControl').textContent,/-R\$\s*5,00/);
+  assert.equal(d.getElementById('homeCommissionPayAll').classList.contains('hidden'),false);
+  assert.equal(d.getElementById('dateStart').value,'2020-01-01');
+ }finally{app.close();}
+});
+test('an unavailable event calculation is shown as an error rather than zero finance',async()=>{
+ const app=boot(async name=>{if(name==='v4_open_work_finance')throw new Error('Sem conexão');return [];});
+ try{await app.api.loadHomeEventFinance();assert.match(app.w.document.getElementById('homeEventFinance').textContent,/Sem conexão/);}
+ finally{app.close();}
 });
