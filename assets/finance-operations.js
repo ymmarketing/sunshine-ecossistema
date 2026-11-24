@@ -36,7 +36,7 @@
     function disclosure(id,title) {
       var list=el(id),heading=list.previousElementSibling;
       if(heading&&heading.classList.contains('sectionTitle'))heading.remove();
-      var box=document.createElement('details');box.id=id+'Disclosure';box.className='listDisclosure';
+      var box=document.createElement('details');box.id=id+'Disclosure';box.className='listDisclosure';if(id==='openWorks')box.open=true;
       box.innerHTML='<summary><span class="sectionTitle">'+esc(title)+'</span><span class="disclosureArrow" aria-hidden="true">⌄</span></summary>';
       list.before(box);box.appendChild(list);
     }
