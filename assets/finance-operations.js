@@ -2,6 +2,7 @@
   'use strict';
   window.SunshineOperations = function (api) {
     var el=api.el, esc=api.esc, money=api.money, cents=api.cents, rpc=api.rpc, state=api.state;
+    var ceoModule=window.SunshineCEO?window.SunshineCEO(api):null;
     var agentModule=window.SunshineAgentAlerts?window.SunshineAgentAlerts(api):null;
     var management=null, cash=null, expenses=[], destinations=[], birthdays=[], report=null;
     var privateModule=window.SunshinePrivateWorks?window.SunshinePrivateWorks.module(api):null;
@@ -73,8 +74,9 @@
       });
       if(receiptModule)receiptModule.init();if(agentModule)agentModule.init();
       if(recurringModule)recurringModule.init();if(privateModule)privateModule.init();
+      if(ceoModule)ceoModule.init();
     }
-    async function onPage(id) { if(privateModule)await privateModule.onPage(id); if(agentModule)await agentModule.onPage(id); if(id==='custos')await loadCosts();if(id==='faturamento')await loadManagement();if(receiptModule)await receiptModule.onPage(id); }
+    async function onPage(id) { if(ceoModule)await ceoModule.onPage(id); if(privateModule)await privateModule.onPage(id); if(agentModule)await agentModule.onPage(id); if(id==='custos')await loadCosts();if(id==='faturamento')await loadManagement();if(receiptModule)await receiptModule.onPage(id); }
     async function loadCash() {
       try {
         cash=await rpc('v4_cash_availability',{p_start:el('dateStart').value,p_end:el('dateEnd').value});
