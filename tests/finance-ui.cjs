@@ -61,6 +61,36 @@ test('invalid commission amounts block the whole batch instead of posting anothe
     }finally{app.close();}
   }
 });
+test('Home commission shortcut submits exactly the typed values with dot or comma decimals',async()=>{
+  for(const [yasmin,rosely] of [['1862.73','450.82'],['1.862,73','450,82']]){
+    const control={pendingTotalCents:231355,pendingByPerson:{Yasmin:186273,Rosely:45082},evidence:[
+      {commissionId:'y-home',commissionTable:'V4',recipientName:'Yasmin',pendingCents:186273},
+      {commissionId:'r-home',commissionTable:'V4',recipientName:'Rosely',pendingCents:45082}
+    ]};
+    const app=boot(async name=>name==='v4_finance_commission_control_filtered'?control:name==='v4_finance_dashboard_filtered'?{}:[]);
+    try{
+      const d=app.w.document;app.api.state.me={name:'Yasmin',permissions:['commission.update']};
+      app.api.state.commissionControl={pendingByPerson:{Yasmin:9900},evidence:[]};
+      d.getElementById('dateStart').value='2020-01-01';d.getElementById('financeCategory').value='CONSULTA';
+      await app.api.loadHomeCommission();
+      d.getElementById('homeCommissionPayAll').click();
+      await new Promise(resolve=>setImmediate(resolve));
+      assert(d.getElementById('commissionPaymentForm'),'Home opens the commission payment form');
+      assert.notEqual(d.getElementById('dateStart').value,'2020-01-01');
+      assert.equal(d.getElementById('financeCategory').value,'');
+      const y=d.querySelector('.commissionPayInput[data-recipient="Yasmin"]'),r=d.querySelector('.commissionPayInput[data-recipient="Rosely"]');
+      y.value=yasmin;r.value=rosely;
+      y.dispatchEvent(new app.w.Event('input'));r.dispatchEvent(new app.w.Event('input'));
+      assert.match(y.parentElement.querySelector('output').textContent,/1\.862,73/);
+      assert.match(r.parentElement.querySelector('output').textContent,/450,82/);
+      await d.getElementById('commissionPaymentForm').onsubmit({preventDefault(){}});
+      const calls=app.calls.filter(x=>x.name==='v4_api_record_commission_payments');assert.equal(calls.length,1);
+      assert.deepEqual(Array.from(calls[0].args.p_items,x=>[x.recipientName,x.amountCents,x.commissions[0].commissionId]),[
+        ['Yasmin',186273,'y-home'],['Rosely',45082,'r-home']
+      ]);
+    }finally{app.close();}
+  }
+});
 test('house membership can be inactivated independently and found in the inactive filter',async()=>{
   let active=true;
   const app=boot(async(name)=>{
