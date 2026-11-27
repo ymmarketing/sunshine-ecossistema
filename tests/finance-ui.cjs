@@ -18,6 +18,49 @@ function boot(handler=async()=>null) {
   w.eval(inline.replace('\ninit();','\nwindow.__testing={get operations(){return operations},state:state,loadHome:loadHome,loadHomeCommission:loadHomeCommission,loadHomeEventFinance:loadHomeEventFinance,homeFinanceAction:homeFinanceAction,openCostReserveDrawer:openCostReserveDrawer,pendingReserveAttempt:pendingReserveAttempt,openEntry:openEntry,entryCategoryCode:entryCategoryCode,loadPeople:loadPeople,loadPersonDetail:loadPersonDetail,renderPersonDetail:renderPersonDetail,openDebtRegularization:openDebtRegularization,loadFinance:loadFinance,loadHouse:loadHouse};init();'));
   return {w,dom,calls,api:w.__testing,close:()=>w.close()};
 }
+test('commission payments preserve decimal cents from mobile and Brazilian inputs',async()=>{
+  const cases=[
+    ['1862.73','450.82',186273,45082],
+    ['1862,73','450,82',186273,45082],
+    ['1.862,73','450,82',186273,45082],
+    ['1,862.73','450.82',186273,45082],
+    ['1862.7','450.8',186270,45080],
+    ['1.862','450',186200,45000],
+    ['0.01','0,10',1,10]
+  ];
+  for(const [yasmin,rosely,yasminCents,roselyCents] of cases){
+    const app=boot(async(name)=>name==='v4_finance_commission_control_filtered'?{}:name==='v4_finance_dashboard_filtered'?{}:[]);
+    try{
+      app.api.state.me={name:'Yasmin',permissions:['commission.update']};
+      app.w.document.getElementById('commissionPayAll').onclick();
+      const d=app.w.document;
+      const y=d.querySelector('.commissionPayInput[data-recipient="Yasmin"]'),r=d.querySelector('.commissionPayInput[data-recipient="Rosely"]');
+      y.value=yasmin;r.value=rosely;
+      y.dispatchEvent(new app.w.Event('input'));r.dispatchEvent(new app.w.Event('input'));
+      assert.equal(y.validationMessage,'',yasmin);
+      assert.equal(y.parentElement.querySelector('output').textContent,'Valor a registrar: '+new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(yasminCents/100));
+      await d.getElementById('commissionPaymentForm').onsubmit({preventDefault(){}});
+      const call=app.calls.find(x=>x.name==='v4_api_record_commission_payments');assert(call,yasmin);
+      assert.deepEqual(Array.from(call.args.p_items,x=>[x.recipientName,x.amountCents]),[['Yasmin',yasminCents],['Rosely',roselyCents]]);
+    }finally{app.close();}
+  }
+});
+test('invalid commission amounts block the whole batch instead of posting another recipient',async()=>{
+  for(const value of ['1862.733','1.862.73','1,862,73','-450.82','abc','0']){
+    const app=boot();
+    try{
+      app.api.state.me={name:'Yasmin',permissions:['commission.update']};
+      const d=app.w.document;d.getElementById('commissionPayAll').onclick();
+      const input=d.querySelector('.commissionPayInput[data-recipient="Yasmin"]');input.value=value;
+      d.querySelector('.commissionPayInput[data-recipient="Rosely"]').value='450.82';
+      input.dispatchEvent(new app.w.Event('input'));
+      assert(input.validationMessage,value);
+      await d.getElementById('commissionPaymentForm').onsubmit({preventDefault(){}});
+      assert(!app.calls.some(x=>x.name==='v4_api_record_commission_payments'),value);
+      assert.match(d.getElementById('commissionPaymentMsg').textContent,/Confira os valores/);
+    }finally{app.close();}
+  }
+});
 test('house membership can be inactivated independently and found in the inactive filter',async()=>{
   let active=true;
   const app=boot(async(name)=>{
