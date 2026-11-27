@@ -152,7 +152,20 @@ var sb=null,operations=null;
 function el(id){return document.getElementById(id)}
 function esc(v){return String(v==null?'':v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
 function money(v){return (Number(v||0)/100).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}
-function cents(v){var n=Number(String(v||'0').replace(/\./g,'').replace(',','.'));return Number.isFinite(n)?Math.round(n*100):0}
+function cents(v){
+  if(typeof v==='number')return Number.isFinite(v)&&Number.isSafeInteger(Math.round(v*100))?Math.round(v*100):0;
+  var s=String(v==null?'':v).trim().replace(/^R\$\s*/,'').replace(/\s/g,'');
+  if(!s)return 0;
+  if(s.includes(',')){
+    if(/^[+-]?(?:\d+|\d{1,3}(?:\.\d{3})+),\d{1,2}$/.test(s))s=s.replace(/\./g,'').replace(',','.');
+    else if(/^[+-]?\d{1,3}(?:,\d{3})+\.\d{1,2}$/.test(s))s=s.replace(/,/g,'');
+    else return 0;
+  }else if(/^[+-]?\d{1,3}(?:\.\d{3})+$/.test(s))s=s.replace(/\./g,'');
+  else if(!/^[+-]?\d+(?:\.\d{1,2})?$/.test(s))return 0;
+  var sign=s[0]==='-'?-1:1,parts=s.replace(/^[+-]/,'').split('.');
+  var amount=sign*(Number(parts[0])*100+Number((parts[1]||'').padEnd(2,'0')));
+  return Number.isSafeInteger(amount)?amount:0;
+}
 function dateBR(v){if(!v)return 'Sem data';var p=String(v).slice(0,10).split('-');return p.length===3?p[2]+'/'+p[1]+'/'+p[0]:String(v)}
 function monthBR(v){if(!v)return 'Sem referência';var d=String(v).slice(0,7).split('-'),names=['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];return d.length===2?names[Number(d[1])-1]+'/'+d[0]:String(v)}
 function toast(t){var e=el('toast');e.textContent=t;e.classList.remove('hidden');clearTimeout(window.tt);window.tt=setTimeout(function(){e.classList.add('hidden')},2600)}
@@ -638,7 +651,7 @@ function openCommissionPaymentDrawer(focusRecipient){
   var cc=state.commissionControl||{},pending=cc.pendingByPerson||{},names=['Yasmin','Lourdes','Rosely'];
   var fields=names.map(function(name){
     var due=Number(financePersonCents(pending,name)||0);
-    return '<div class="field"><label>'+name+' — repasse pendente '+money(due)+'</label><input class="commissionPayInput" data-recipient="'+name+'" inputmode="decimal" placeholder="0,00"><div class="hint">Digite o valor pago agora. O excedente ficará como crédito.</div></div>';
+    return '<div class="field"><label>'+name+' — repasse pendente '+money(due)+'</label><input class="commissionPayInput" data-recipient="'+name+'" inputmode="decimal" placeholder="0,00"><div class="hint">Digite o valor pago agora. O excedente ficará como crédito.</div><output class="commissionPayPreview" aria-live="polite">Valor a registrar: '+money(0)+'</output></div>';
   }).join('');
   openDrawer('Registrar pagamento de comissão','<div class="note">Você pode pagar um valor parcial ou maior que o saldo. O valor pago a mais aparece como saldo negativo e será abatido das próximas comissões, inclusive nos próximos meses.</div><form id="commissionPaymentForm"><div class="field"><label>Data do pagamento</label><input id="commissionPaidOn" type="date" value="'+todayLocal()+'" required></div>'+fields+'<div class="field"><label>Observação</label><textarea id="commissionPaymentNotes" placeholder="Opcional"></textarea></div><div id="commissionPaymentMsg"></div><button class="primary" type="submit" style="width:100%">Registrar baixa</button></form>');
   if(focusRecipient){
@@ -646,18 +659,27 @@ function openCommissionPaymentDrawer(focusRecipient){
     if(input&&!input.disabled)setTimeout(function(){input.focus()},0);
   }
   el('commissionPaymentForm').onsubmit=submitCommissionPayments;
+  document.querySelectorAll('.commissionPayInput').forEach(function(input){
+    input.oninput=function(){
+      var amount=cents(input.value),invalid=input.value.trim()!==''&&amount<=0;
+      input.setCustomValidity(invalid?'Informe um valor positivo, com até duas casas decimais.':'');
+      input.parentElement.querySelector('.commissionPayPreview').textContent=invalid?'Valor inválido. Exemplo: 1862,73 ou 1862.73.':'Valor a registrar: '+money(amount);
+    };
+  });
 }
 async function submitCommissionPayments(ev){
   ev.preventDefault();
-  var paidOn=el('commissionPaidOn').value,items=[],total=0;
+  var paidOn=el('commissionPaidOn').value,items=[],total=0,invalid=false;
   [].slice.call(document.querySelectorAll('.commissionPayInput')).forEach(function(input){
     if(input.disabled)return;
     var amount=cents(input.value),recipient=input.dataset.recipient;
+    if(input.value.trim()!==''&&amount<=0)invalid=true;
     if(amount>0){
       items.push({recipientName:recipient,amountCents:amount,commissions:commissionCandidatesFor(recipient)});
       total+=amount;
     }
   });
+  if(invalid){el('commissionPaymentMsg').innerHTML='<div class="formError">Confira os valores. Use até duas casas decimais, por exemplo 1862,73 ou 1862.73.</div>';return}
   if(!items.length){toast('Informe quanto foi pago para pelo menos uma pessoa');return}
   var btn=el('commissionPaymentForm').querySelector('button[type="submit"]');btn.disabled=true;
   try{
